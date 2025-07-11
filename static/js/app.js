@@ -1,14 +1,17 @@
-// Sisense Flask UI JavaScript
+// Sisense Flask UI JavaScript v2.0
 
 class SisenseUI {
     constructor() {
         this.baseUrl = '';
+        this.currentResults = null;
+        this.requestCount = 0;
         this.init();
     }
 
     init() {
         this.setupEventListeners();
         this.checkAuthStatus();
+        this.logSystemEvent('SisenseUI initialized', 'INFO');
     }
 
     setupEventListeners() {
@@ -52,14 +55,21 @@ class SisenseUI {
             btn.addEventListener('click', (e) => this.handleExport(e));
         });
 
-        // Navigation active state
+        // Enhanced navigation tracking
         this.updateActiveNavigation();
+        
+        // Track page visits
+        this.logUserAction('page_visit', { 
+            page: window.location.pathname,
+            timestamp: new Date().toISOString()
+        });
     }
 
     updateActiveNavigation() {
         const currentPath = window.location.pathname;
-        document.querySelectorAll('.nav a').forEach(link => {
-            if (link.getAttribute('href') === currentPath) {
+        document.querySelectorAll('.nav-link').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href === currentPath) {
                 link.classList.add('active');
             } else {
                 link.classList.remove('active');
@@ -68,10 +78,17 @@ class SisenseUI {
     }
 
     async checkAuthStatus() {
+        const startTime = performance.now();
+        
         try {
             const response = await fetch('/api/auth/validate');
             const data = await response.json();
+            const responseTime = performance.now() - startTime;
             
+            // Log API call
+            this.logApiCall('GET', '/api/auth/validate', null, response.status, responseTime);
+            
+            // Update legacy auth status elements (for backward compatibility)
             const authStatus = document.getElementById('auth-status');
             if (authStatus) {
                 if (data.valid) {
@@ -80,8 +97,13 @@ class SisenseUI {
                     authStatus.innerHTML = '<span class="badge badge-danger">Disconnected</span>';
                 }
             }
+            
+            // Update connection status in header is handled by ConnectionStatusMonitor
+            
         } catch (error) {
             console.error('Auth check failed:', error);
+            this.logSystemEvent('Auth check failed: ' + error.message, 'ERROR');
+            
             const authStatus = document.getElementById('auth-status');
             if (authStatus) {
                 authStatus.innerHTML = '<span class="badge badge-warning">Unknown</span>';
@@ -136,11 +158,19 @@ class SisenseUI {
         const btn = e.target.querySelector('button[type="submit"]');
         const originalText = btn.textContent;
         const resultsDiv = document.getElementById('sql-results');
+        const startTime = performance.now();
+        
+        // Log user action
+        this.logUserAction('sql_query_executed', { 
+            datasource: datasource, 
+            query_length: query.length,
+            has_limit: !!limit
+        });
         
         try {
             btn.textContent = 'Executing...';
             btn.disabled = true;
-            resultsDiv.innerHTML = '<div class="spinner"></div>';
+            resultsDiv.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Executing query...</div>';
 
             const params = new URLSearchParams({
                 query: query
@@ -150,17 +180,29 @@ class SisenseUI {
 
             const response = await fetch(`/api/datasources/${datasource}/sql?${params}`);
             const data = await response.json();
+            const responseTime = performance.now() - startTime;
+            
+            // Log API call
+            this.logApiCall('GET', `/api/datasources/${datasource}/sql`, 
+                { datasource, query: query.substring(0, 100) + '...', limit }, 
+                response.status, responseTime);
             
             if (response.ok) {
                 this.displaySQLResults(data, resultsDiv);
-                this.showAlert('Query executed successfully', 'success');
+                this.showAlert(`Query executed successfully in ${Math.round(responseTime)}ms`, 'success');
+                this.logSystemEvent('SQL query executed successfully', 'INFO', { 
+                    rows: data.data?.length || 0,
+                    responseTime: Math.round(responseTime)
+                });
             } else {
                 resultsDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.message}</div>`;
                 this.showAlert(data.message || 'Query failed', 'danger');
+                this.logSystemEvent('SQL query failed', 'ERROR', { error: data.message });
             }
         } catch (error) {
             resultsDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
             this.showAlert('Query execution failed: ' + error.message, 'danger');
+            this.logSystemEvent('SQL query execution error', 'ERROR', { error: error.message });
         } finally {
             btn.textContent = originalText;
             btn.disabled = false;
@@ -479,6 +521,35 @@ class SisenseUI {
     formatDateTime(dateString) {
         if (!dateString) return 'N/A';
         return new Date(dateString).toLocaleString();
+    }
+    
+    // Enhanced logging methods
+    logApiCall(method, endpoint, payload = null, responseStatus = null, responseTime = null) {
+        if (window.sisenseLogger) {
+            window.sisenseLogger.logApiCall(method, endpoint, payload, responseStatus, responseTime);
+        }
+    }
+    
+    logUserAction(action, details = null) {
+        if (window.sisenseLogger) {
+            window.sisenseLogger.logUserAction(action, details);
+        }
+    }
+    
+    logSystemEvent(event, level = 'INFO', details = null) {
+        if (window.sisenseLogger) {
+            window.sisenseLogger.logSystemEvent(event, level, details);
+        }
+    }
+    
+    // Enhanced alert system
+    showAlert(message, type = 'info', duration = 5000) {
+        if (window.alertManager) {
+            return window.alertManager.show(message, type, duration);
+        } else {
+            // Fallback to console if alert manager not available
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
     }
 }
 

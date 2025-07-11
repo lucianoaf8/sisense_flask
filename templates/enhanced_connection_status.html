@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}Connection Status{% endblock %}
+
+{% block head %}
+<style>
+    .connection-status {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+        margin: 1rem 0;
+    }
+    
+    .connection-status::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { left: -100%; }
+        100% { left: 100%; }
+    }
+    
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+    
+    .status-dot.connected { background: #10b981; }
+    .status-dot.connecting { background: #f59e0b; }
+    .status-dot.disconnected { background: #ef4444; }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    
+    .connection-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .connection-metric {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 0.25rem;
+    }
+    
+    .metric-label {
+        opacity: 0.8;
+        font-size: 0.875rem;
+    }
+    
+    .health-chart {
+        width: 100%;
+        height: 60px;
+        margin-top: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .auto-refresh {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        font-size: 0.875rem;
+        opacity: 0.9;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .refresh-toggle {
+        position: relative;
+        width: 40px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .refresh-toggle.active {
+        background: #10b981;
+    }
+    
+    .refresh-toggle::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 16px;
+        height: 16px;
+        background: white;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }
+    
+    .refresh-toggle.active::after {
+        left: 22px;
+    }
+    
+    .connection-details {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+    
+    .detail-label {
+        opacity: 0.8;
+    }
+    
+    .detail-value {
+        font-weight: 500;
+    }
+    
+    @media (max-width: 768px) {
+        .connection-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .connection-status {
+            padding: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Connection Status Monitor</h1>
+    <p>Real-time monitoring of Sisense API connection health and performance.</p>
+    
+    <div class="connection-status" id="connectionStatus">
+        <div class="status-indicator">
+            <div class="status-dot connecting" id="statusDot"></div>
+            <strong id="statusText">Checking connection...</strong>
+        </div>
+        
+        <div class="connection-grid">
+            <div class="connection-metric">
+                <div class="metric-value" id="responseTime">--</div>
+                <div class="metric-label">Response Time (ms)</div>
+            </div>
+            <div class="connection-metric">
+                <div class="metric-value" id="apiCalls">--</div>
+                <div class="metric-label">API Calls Today</div>
+            </div>
+            <div class="connection-metric">
+                <div class="metric-value" id="uptime">--</div>
+                <div class="metric-label">Session Uptime</div>
+            </div>
+            <div class="connection-metric">
+                <div class="metric-value" id="lastSync">--</div>
+                <div class="metric-label">Last Sync</div>
+            </div>
+        </div>
+        
+        <canvas class="health-chart" id="healthChart"></canvas>
+        
+        <div class="auto-refresh">
+            <div class="refresh-toggle active" id="refreshToggle"></div>
+            <span>Auto-refresh every 30s</span>
+        </div>
+    </div>
+    
+    <div class="connection-details">
+        <h3>Connection Details</h3>
+        <div class="detail-row">
+            <span class="detail-label">Sisense URL:</span>
+            <span class="detail-value" id="sisenseUrl">{{ sisense_url }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">API Version:</span>
+            <span class="detail-value" id="apiVersion">v1/v2</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Authentication:</span>
+            <span class="detail-value" id="authMethod">API Token</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">User Info:</span>
+            <span class="detail-value" id="userInfo">Loading...</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Connection Quality:</span>
+            <span class="detail-value" id="connectionQuality">--</span>
+        </div>
+    </div>
+    
+    <div class="row" style="margin-top: 2rem;">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Actions</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary" onclick="manualRefresh()">Refresh Now</button>
+                    <button class="btn btn-secondary" onclick="testConnection()">Test Connection</button>
+                    <button class="btn btn-info" onclick="clearMetrics()">Clear Metrics</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Connection Log</h5>
+                </div>
+                <div class="card-body">
+                    <div id="connectionLog" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.875rem;">
+                        <div>Initializing connection monitor...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+class ConnectionStatusMonitor {
+    constructor() {
+        this.autoRefresh = true;
+        this.refreshInterval = 30000; // 30 seconds
+        this.healthData = Array(20).fill(100);
+        this.intervalId = null;
+        this.startTime = Date.now();
+        this.apiCallCount = 0;
+        this.connectionLog = [];
+        
+        this.init();
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.startMonitoring();
+        this.updateStatus();
+        this.drawHealthChart();
+        this.loadUserInfo();
+    }
+    
+    setupEventListeners() {
+        const toggle = document.getElementById('refreshToggle');
+        toggle.addEventListener('click', () => {
+            this.autoRefresh = !this.autoRefresh;
+            toggle.classList.toggle('active', this.autoRefresh);
+            
+            if (this.autoRefresh) {
+                this.startMonitoring();
+                this.addLog('Auto-refresh enabled');
+            } else {
+                this.stopMonitoring();
+                this.addLog('Auto-refresh disabled');
+            }
+        });
+    }
+    
+    startMonitoring() {
+        if (this.intervalId) return;
+        
+        this.intervalId = setInterval(() => {
+            this.updateStatus();
+        }, this.refreshInterval);
+        
+        this.addLog('Monitoring started');
+    }
+    
+    stopMonitoring() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+        
+        this.addLog('Monitoring stopped');
+    }
+    
+    async updateStatus() {
+        const startTime = performance.now();
+        
+        try {
+            // Update status indicator
+            this.setStatus('connecting', 'Checking connection...');
+            
+            const response = await fetch('/api/auth/validate');
+            const data = await response.json();
+            const responseTime = Math.round(performance.now() - startTime);
+            
+            if (data.valid) {
+                this.setStatus('connected', 'Connected to Sisense');
+                this.updateMetrics(responseTime, true);
+                this.addLog(`Connection verified (${responseTime}ms)`);
+            } else {
+                this.setStatus('disconnected', `Connection failed: ${data.message}`);
+                this.updateMetrics(responseTime, false);
+                this.addLog(`Connection failed: ${data.message}`);
+            }
+        } catch (error) {
+            this.setStatus('disconnected', 'Connection error');
+            this.updateMetrics(null, false);
+            this.addLog(`Error: ${error.message}`);
+        }
+    }
+    
+    setStatus(status, text) {
+        const dot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        
+        dot.className = `status-dot ${status}`;
+        statusText.textContent = text;
+    }
+    
+    updateMetrics(responseTime, isHealthy) {
+        // Response Time
+        if (responseTime !== null) {
+            document.getElementById('responseTime').textContent = responseTime;
+            
+            // Update health data
+            this.healthData.shift();
+            this.healthData.push(Math.max(0, 100 - (responseTime / 10)));
+            this.drawHealthChart();
+            
+            // Update connection quality
+            const quality = responseTime < 100 ? 'Excellent' : 
+                           responseTime < 300 ? 'Good' : 
+                           responseTime < 1000 ? 'Fair' : 'Poor';
+            document.getElementById('connectionQuality').textContent = quality;
+        }
+        
+        // API Calls
+        if (isHealthy) {
+            this.apiCallCount++;
+            document.getElementById('apiCalls').textContent = this.apiCallCount;
+        }
+        
+        // Uptime
+        const uptime = Math.floor((Date.now() - this.startTime) / 1000);
+        const hours = Math.floor(uptime / 3600);
+        const minutes = Math.floor((uptime % 3600) / 60);
+        const seconds = uptime % 60;
+        document.getElementById('uptime').textContent = `${hours}h ${minutes}m ${seconds}s`;
+        
+        // Last Sync
+        document.getElementById('lastSync').textContent = new Date().toLocaleTimeString();
+    }
+    
+    drawHealthChart() {
+        const canvas = document.getElementById('healthChart');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width = canvas.offsetWidth;
+        const height = canvas.height = canvas.offsetHeight;
+        
+        ctx.clearRect(0, 0, width, height);
+        
+        // Draw grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const y = (height / 4) * i;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+        }
+        
+        // Draw health line
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        
+        this.healthData.forEach((value, index) => {
+            const x = (width / (this.healthData.length - 1)) * index;
+            const y = height - (height * value / 100);
+            
+            if (index === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        });
+        
+        ctx.stroke();
+        
+        // Fill area under curve
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.1)';
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
+        ctx.closePath();
+        ctx.fill();
+    }
+    
+    async loadUserInfo() {
+        try {
+            const response = await fetch('/api/auth/user-info');
+            const data = await response.json();
+            
+            if (data.user) {
+                document.getElementById('userInfo').textContent = 
+                    `${data.user.firstName || 'Unknown'} ${data.user.lastName || 'User'}`;
+            } else {
+                document.getElementById('userInfo').textContent = 'Not available';
+            }
+        } catch (error) {
+            document.getElementById('userInfo').textContent = 'Error loading';
+            this.addLog(`User info error: ${error.message}`);
+        }
+    }
+    
+    addLog(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = `[${timestamp}] ${message}`;
+        
+        this.connectionLog.unshift(logEntry);
+        if (this.connectionLog.length > 50) {
+            this.connectionLog.pop();
+        }
+        
+        const logContainer = document.getElementById('connectionLog');
+        logContainer.innerHTML = this.connectionLog
+            .map(entry => `<div>${entry}</div>`)
+            .join('');
+    }
+}
+
+// Global functions
+async function manualRefresh() {
+    SisenseUI.showNotification('Refreshing connection status...', 'info');
+    await window.connectionMonitor.updateStatus();
+}
+
+async function testConnection() {
+    SisenseUI.showNotification('Testing connection...', 'info');
+    
+    try {
+        const startTime = performance.now();
+        const response = await fetch('/health');
+        const responseTime = Math.round(performance.now() - startTime);
+        
+        if (response.ok) {
+            SisenseUI.showNotification(`Connection test successful (${responseTime}ms)`, 'success');
+        } else {
+            SisenseUI.showNotification('Connection test failed', 'error');
+        }
+    } catch (error) {
+        SisenseUI.showNotification(`Connection test error: ${error.message}`, 'error');
+    }
+}
+
+function clearMetrics() {
+    if (confirm('Clear all metrics and logs?')) {
+        window.connectionMonitor.apiCallCount = 0;
+        window.connectionMonitor.healthData = Array(20).fill(100);
+        window.connectionMonitor.connectionLog = [];
+        window.connectionMonitor.startTime = Date.now();
+        
+        document.getElementById('apiCalls').textContent = '0';
+        document.getElementById('uptime').textContent = '0h 0m 0s';
+        document.getElementById('connectionLog').innerHTML = '<div>Metrics cleared</div>';
+        window.connectionMonitor.drawHealthChart();
+        
+        SisenseUI.showNotification('Metrics cleared', 'success');
+    }
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.connectionMonitor = new ConnectionStatusMonitor();
+});
+</script>
+{% endblock %}

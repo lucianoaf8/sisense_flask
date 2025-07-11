@@ -8,6 +8,7 @@ listing dashboards, getting dashboard details, and managing widgets.
 import logging
 from typing import Dict, List, Optional, Any
 
+from config import Config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client, SisenseAPIError, validate_response_data
 
@@ -27,13 +28,27 @@ def list_dashboards(
         owner: Optional owner filter (user ID).
         shared: Optional filter for shared dashboards.
         fields: Optional list of fields to include in response.
-        
-    Returns:
-        List[Dict]: List of dashboard metadata.
-        
-    Raises:
-        SisenseAPIError: If request fails.
     """
+    # Demo mode - return sample dashboards
+    if Config.DEMO_MODE:
+        return [
+            {
+                "oid": "demo-dashboard-1",
+                "title": "Sales Performance Dashboard",
+                "desc": "Demo dashboard showing sales metrics",
+                "owner": "demo-user-123",
+                "created": "2024-01-01T00:00:00Z",
+                "lastOpened": "2024-01-20T10:00:00Z"
+            },
+            {
+                "oid": "demo-dashboard-2",
+                "title": "Marketing Analytics",
+                "desc": "Demo marketing performance dashboard", 
+                "owner": "demo-user-123",
+                "created": "2024-01-05T00:00:00Z",
+                "lastOpened": "2024-01-19T15:30:00Z"
+            }
+        ]
     http_client = get_http_client()
     headers = get_auth_headers()
     

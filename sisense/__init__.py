@@ -13,8 +13,10 @@ from . import widgets
 from . import sql
 from . import jaql
 from . import utils
+from . import logger
+from . import enhanced_auth
 
-__version__ = '1.0.0'
+__version__ = '2.0.0'
 __all__ = [
     'auth',
     'datamodels', 
@@ -23,5 +25,7 @@ __all__ = [
     'widgets',
     'sql',
     'jaql',
-    'utils'
+    'utils',
+    'logger',
+    'enhanced_auth'
 ]

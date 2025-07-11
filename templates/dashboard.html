@@ -3,186 +3,669 @@
 {% block title %}Dashboard - Sisense Flask Integration{% endblock %}
 
 {% block content %}
-<div class="fade-in">
-    <div class="grid">
-        <!-- Connection Status Card -->
-        <div class="card">
-            <h2>Connection Status</h2>
-            <div class="form-group">
-                <label>Authentication Status:</label>
-                <div id="auth-status">
-                    <span class="badge badge-warning">Checking...</span>
-                </div>
+<!-- Welcome Banner -->
+<div class="card fade-in">
+    <h2><i class="fas fa-tachometer-alt"></i> Dashboard Overview</h2>
+    <p>Welcome to Sisense Flask Integration v2.0. Monitor your data sources, execute queries, and manage connections through this modernized interface.</p>
+    
+    <div class="grid grid-3">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-chart-bar"></i>
             </div>
-            <div class="form-group">
-                <label>Sisense URL:</label>
-                <input type="text" class="form-control" value="{{ sisense_url }}" readonly>
-            </div>
-            <div class="form-group">
-                <button class="btn btn-primary refresh-btn" data-target="auth">
-                    Refresh Status
-                </button>
-                <button class="btn btn-success" onclick="window.sisenseUI.handleAuth(event)" id="test-connection">
-                    Test Connection
-                </button>
+            <div class="stat-content">
+                <h3 id="dashboard-count" class="stat-number">0</h3>
+                <p class="stat-label">Dashboards</p>
             </div>
         </div>
-
-        <!-- Quick Stats Card -->
-        <div class="card">
-            <h2>Quick Stats</h2>
-            <div id="quick-stats">
-                <div class="mb-3">
-                    <strong>Dashboards:</strong> <span id="dashboard-count">-</span>
-                </div>
-                <div class="mb-3">
-                    <strong>Data Models:</strong> <span id="model-count">-</span>
-                </div>
-                <div class="mb-3">
-                    <strong>Connections:</strong> <span id="connection-count">-</span>
-                </div>
-                <button class="btn btn-secondary btn-sm" onclick="loadQuickStats()">
-                    Load Stats
-                </button>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-database"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="model-count" class="stat-number">0</h3>
+                <p class="stat-label">Data Models</p>
             </div>
         </div>
-    </div>
-
-    <!-- Recent Activity Card -->
-    <div class="card">
-        <h2>Recent Activity</h2>
-        <div id="recent-activity">
-            <div class="table-container">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Action</th>
-                            <th>Resource</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="activity-log">
-                        <tr>
-                            <td colspan="4" class="text-center">No recent activity</td>
-                        </tr>
-                    </tbody>
-                </table>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-plug"></i>
             </div>
-        </div>
-    </div>
-
-    <!-- Quick Actions Card -->
-    <div class="card">
-        <h2>Quick Actions</h2>
-        <div class="grid">
-            <div>
-                <h3>Data Exploration</h3>
-                <div class="mb-3">
-                    <a href="{{ url_for('data_models') }}" class="btn btn-primary">
-                        Browse Data Models
-                    </a>
-                </div>
-                <div class="mb-3">
-                    <a href="{{ url_for('dashboards') }}" class="btn btn-primary">
-                        View Dashboards
-                    </a>
-                </div>
+            <div class="stat-content">
+                <h3 id="connection-count" class="stat-number">0</h3>
+                <p class="stat-label">Connections</p>
             </div>
-            <div>
-                <h3>Query Tools</h3>
-                <div class="mb-3">
-                    <a href="{{ url_for('query_sql') }}" class="btn btn-success">
-                        Execute SQL Query
-                    </a>
-                </div>
-                <div class="mb-3">
-                    <a href="{{ url_for('query_jaql') }}" class="btn btn-success">
-                        Execute JAQL Query
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Health Check Card -->
-    <div class="card">
-        <h2>System Health</h2>
-        <div id="health-check">
-            <div class="form-group">
-                <button class="btn btn-primary" onclick="performHealthCheck()">
-                    Run Health Check
-                </button>
-            </div>
-            <div id="health-results"></div>
         </div>
     </div>
 </div>
 
-<form id="auth-form" style="display: none;">
-    <!-- Hidden form for authentication testing -->
-</form>
+<!-- System Status Card -->
+<div class="card slide-in">
+    <h2><i class="fas fa-server"></i> System Status</h2>
+    <div class="grid grid-2">
+        <div class="status-section">
+            <h3>Connection Health</h3>
+            <div class="status-item">
+                <span class="status-label">Authentication:</span>
+                <div id="auth-status">
+                    <span class="badge badge-warning">Checking...</span>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Sisense URL:</span>
+                <span class="status-value">{{ sisense_url }}</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Last Check:</span>
+                <span class="status-value" id="last-check">Never</span>
+            </div>
+        </div>
+        
+        <div class="status-section">
+            <h3>Performance Metrics</h3>
+            <div class="status-item">
+                <span class="status-label">API Response Time:</span>
+                <span class="status-value" id="api-response-time">-- ms</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Active Sessions:</span>
+                <span class="status-value" id="active-sessions">1</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Memory Usage:</span>
+                <span class="status-value" id="browser-memory">-- MB</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <button class="btn btn-primary" onclick="performFullHealthCheck()">
+            <i class="fas fa-heartbeat"></i> Run Health Check
+        </button>
+        <button class="btn btn-secondary" onclick="refreshSystemStatus()">
+            <i class="fas fa-sync-alt"></i> Refresh Status
+        </button>
+    </div>
+    
+    <div id="health-results" class="mt-3"></div>
+</div>
+
+<!-- Quick Actions Grid -->
+<div class="grid">
+    <!-- Data Exploration Card -->
+    <div class="card action-card">
+        <h2><i class="fas fa-search"></i> Data Exploration</h2>
+        <p>Browse and explore your Sisense data assets</p>
+        <div class="action-buttons">
+            <a href="{{ url_for('data_models') }}" class="btn btn-primary">
+                <i class="fas fa-database"></i> Data Models
+            </a>
+            <a href="{{ url_for('dashboards') }}" class="btn btn-primary">
+                <i class="fas fa-chart-bar"></i> Dashboards
+            </a>
+            <a href="{{ url_for('connections') }}" class="btn btn-secondary">
+                <i class="fas fa-plug"></i> Connections
+            </a>
+        </div>
+    </div>
+
+    <!-- Query Tools Card -->
+    <div class="card action-card">
+        <h2><i class="fas fa-code"></i> Query Tools</h2>
+        <p>Execute queries and explore your data</p>
+        <div class="action-buttons">
+            <a href="{{ url_for('query_sql') }}" class="btn btn-success">
+                <i class="fas fa-code"></i> SQL Query
+            </a>
+            <a href="{{ url_for('query_jaql') }}" class="btn btn-success">
+                <i class="fas fa-terminal"></i> JAQL Query
+            </a>
+        </div>
+        <div class="query-stats">
+            <small class="text-muted">
+                <span id="query-count">0</span> queries executed today
+            </small>
+        </div>
+    </div>
+
+    <!-- System Tools Card -->
+    <div class="card action-card">
+        <h2><i class="fas fa-tools"></i> System Tools</h2>
+        <p>Monitor and manage your system</p>
+        <div class="action-buttons">
+            <a href="{{ url_for('api_docs') }}" class="btn btn-info">
+                <i class="fas fa-book"></i> API Documentation
+            </a>
+            <button class="btn btn-warning" onclick="downloadSystemLogs()">
+                <i class="fas fa-download"></i> Download Logs
+            </button>
+        </div>
+        <div class="tool-stats">
+            <small class="text-muted">
+                <span id="log-entries">0</span> log entries today
+            </small>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity Card -->
+<div class="card">
+    <h2><i class="fas fa-history"></i> Recent Activity</h2>
+    <div class="activity-controls">
+        <select id="activity-filter" class="form-control" style="width: auto; display: inline-block;">
+            <option value="all">All Activities</option>
+            <option value="api_call">API Calls</option>
+            <option value="user_action">User Actions</option>
+            <option value="system_event">System Events</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="refreshActivity()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+    
+    <div id="recent-activity" class="mt-3">
+        <div class="activity-timeline">
+            <div class="activity-item">
+                <div class="activity-icon">
+                    <i class="fas fa-power-off"></i>
+                </div>
+                <div class="activity-content">
+                    <span class="activity-time">Just now</span>
+                    <span class="activity-text">System started</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Metrics Card -->
+<div class="card">
+    <h2><i class="fas fa-chart-line"></i> Performance Metrics</h2>
+    <div class="metrics-grid">
+        <div class="metric-item">
+            <div class="metric-value" id="avg-response-time">--</div>
+            <div class="metric-label">Avg Response Time</div>
+        </div>
+        <div class="metric-item">
+            <div class="metric-value" id="requests-today">0</div>
+            <div class="metric-label">Requests Today</div>
+        </div>
+        <div class="metric-item">
+            <div class="metric-value" id="error-rate">0%</div>
+            <div class="metric-label">Error Rate</div>
+        </div>
+        <div class="metric-item">
+            <div class="metric-value" id="uptime-display">00:00:00</div>
+            <div class="metric-label">Uptime</div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden form for backward compatibility -->
+<form id="auth-form" style="display: none;"></form>
 {% endblock %}
 
 {% block scripts %}
 <script>
-async function loadQuickStats() {
-    try {
-        // Load dashboards count
-        const dashboardsResponse = await fetch('/api/dashboards');
-        if (dashboardsResponse.ok) {
-            const dashboards = await dashboardsResponse.json();
-            document.getElementById('dashboard-count').textContent = dashboards.count || 0;
+class DashboardManager {
+    constructor() {
+        this.startTime = Date.now();
+        this.requestCount = 0;
+        this.errorCount = 0;
+        this.responseTimeSum = 0;
+        this.queryCount = 0;
+        
+        this.init();
+    }
+    
+    init() {
+        this.loadQuickStats();
+        this.startPerformanceTracking();
+        this.loadRecentActivity();
+        
+        // Update metrics every 30 seconds
+        setInterval(() => this.updateMetrics(), 30000);
+        
+        // Log dashboard view
+        if (window.sisenseLogger) {
+            window.sisenseLogger.logUserAction('dashboard_viewed');
         }
+    }
+    
+    async loadQuickStats() {
+        try {
+            // Track API calls for performance metrics
+            const startTime = performance.now();
+            
+            // Load dashboards count
+            const dashboardsResponse = await fetch('/api/dashboards');
+            if (dashboardsResponse.ok) {
+                const dashboards = await dashboardsResponse.json();
+                document.getElementById('dashboard-count').textContent = dashboards.count || 0;
+                this.trackApiCall(dashboardsResponse.status, performance.now() - startTime);
+            }
 
-        // Load data models count
-        const modelsResponse = await fetch('/api/datamodels');
-        if (modelsResponse.ok) {
-            const models = await modelsResponse.json();
-            document.getElementById('model-count').textContent = models.count || 0;
-        }
+            // Load data models count
+            const modelsResponse = await fetch('/api/datamodels');
+            if (modelsResponse.ok) {
+                const models = await modelsResponse.json();
+                document.getElementById('model-count').textContent = models.count || 0;
+                this.trackApiCall(modelsResponse.status, performance.now() - startTime);
+            }
 
-        // Load connections count
-        const connectionsResponse = await fetch('/api/connections');
-        if (connectionsResponse.ok) {
-            const connections = await connectionsResponse.json();
-            document.getElementById('connection-count').textContent = connections.count || 0;
+            // Load connections count
+            const connectionsResponse = await fetch('/api/connections');
+            if (connectionsResponse.ok) {
+                const connections = await connectionsResponse.json();
+                document.getElementById('connection-count').textContent = connections.count || 0;
+                this.trackApiCall(connectionsResponse.status, performance.now() - startTime);
+            }
+            
+        } catch (error) {
+            console.error('Failed to load quick stats:', error);
+            this.trackApiCall(0, 0); // Track error
+            
+            if (window.sisenseLogger) {
+                window.sisenseLogger.logSystemEvent('Failed to load dashboard stats', 'ERROR', { error: error.message });
+            }
         }
-    } catch (error) {
-        console.error('Failed to load quick stats:', error);
+    }
+    
+    trackApiCall(status, responseTime) {
+        this.requestCount++;
+        this.responseTimeSum += responseTime;
+        
+        if (status >= 400) {
+            this.errorCount++;
+        }
+        
+        this.updateMetrics();
+    }
+    
+    updateMetrics() {
+        // Average response time
+        const avgResponseTime = this.requestCount > 0 ? (this.responseTimeSum / this.requestCount).toFixed(1) : '--';
+        document.getElementById('avg-response-time').textContent = avgResponseTime + ' ms';
+        
+        // Requests today
+        document.getElementById('requests-today').textContent = this.requestCount;
+        
+        // Error rate
+        const errorRate = this.requestCount > 0 ? ((this.errorCount / this.requestCount) * 100).toFixed(1) : '0';
+        document.getElementById('error-rate').textContent = errorRate + '%';
+        
+        // Uptime
+        const uptime = Date.now() - this.startTime;
+        const hours = Math.floor(uptime / (1000 * 60 * 60));
+        const minutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((uptime % (1000 * 60)) / 1000);
+        document.getElementById('uptime-display').textContent = 
+            `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        // Browser memory (if available)
+        if ('memory' in performance) {
+            const memory = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
+            document.getElementById('browser-memory').textContent = memory + ' MB';
+        }
+        
+        // API response time for status
+        document.getElementById('api-response-time').textContent = avgResponseTime === '--' ? '-- ms' : avgResponseTime + ' ms';
+        
+        // Last check time
+        document.getElementById('last-check').textContent = new Date().toLocaleTimeString();
+    }
+    
+    startPerformanceTracking() {
+        // Track navigation timing
+        if ('performance' in window && 'timing' in window.performance) {
+            const timing = window.performance.timing;
+            const loadTime = timing.loadEventEnd - timing.navigationStart;
+            
+            if (window.sisenseLogger) {
+                window.sisenseLogger.logSystemEvent('Page load performance', 'INFO', {
+                    loadTime: loadTime,
+                    domReady: timing.domContentLoadedEventEnd - timing.navigationStart,
+                    firstByte: timing.responseStart - timing.navigationStart
+                });
+            }
+        }
+    }
+    
+    async loadRecentActivity() {
+        try {
+            const response = await fetch('/api/logs/recent?limit=10');
+            if (response.ok) {
+                const data = await response.json();
+                this.displayRecentActivity(data.logs || []);
+            }
+        } catch (error) {
+            console.error('Failed to load recent activity:', error);
+        }
+    }
+    
+    displayRecentActivity(logs) {
+        const container = document.getElementById('recent-activity');
+        if (!container) return;
+        
+        if (logs.length === 0) {
+            container.innerHTML = '<div class="no-activity">No recent activity</div>';
+            return;
+        }
+        
+        const timeline = logs.slice(0, 5).map(log => {
+            const time = new Date(log.timestamp || Date.now()).toLocaleTimeString();
+            const icon = this.getActivityIcon(log.level || 'INFO');
+            
+            return `
+                <div class="activity-item">
+                    <div class="activity-icon">
+                        <i class="fas fa-${icon}"></i>
+                    </div>
+                    <div class="activity-content">
+                        <span class="activity-time">${time}</span>
+                        <span class="activity-text">${log.message || log}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        container.innerHTML = `<div class="activity-timeline">${timeline}</div>`;
+    }
+    
+    getActivityIcon(level) {
+        const icons = {
+            'INFO': 'info-circle',
+            'WARNING': 'exclamation-triangle',
+            'ERROR': 'exclamation-circle',
+            'SUCCESS': 'check-circle'
+        };
+        return icons[level] || 'circle';
     }
 }
 
-async function performHealthCheck() {
+// Global functions
+async function performFullHealthCheck() {
     const resultsDiv = document.getElementById('health-results');
-    resultsDiv.innerHTML = '<div class="spinner"></div>';
+    resultsDiv.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Running health check...</div>';
     
     try {
         const response = await fetch('/health');
         const data = await response.json();
         
-        let html = '<div class="mt-3">';
+        let html = '<div class="health-results">';
         html += `<div class="alert alert-${data.status === 'healthy' ? 'success' : 'danger'}">`;
-        html += `<strong>Status:</strong> ${data.status}<br>`;
-        html += `<strong>Authentication:</strong> ${data.authentication}<br>`;
-        html += `<strong>Sisense URL:</strong> ${data.sisense_url}<br>`;
-        html += `<strong>Timestamp:</strong> ${new Date(data.timestamp * 1000).toLocaleString()}`;
+        html += `<h4><i class="fas fa-${data.status === 'healthy' ? 'check-circle' : 'exclamation-circle'}"></i> System ${data.status}</h4>`;
+        html += `<div class="health-details">`;
+        html += `<p><strong>Authentication:</strong> ${data.authentication}</p>`;
+        html += `<p><strong>Sisense URL:</strong> ${data.sisense_url}</p>`;
+        html += `<p><strong>Check Time:</strong> ${new Date(data.timestamp * 1000).toLocaleString()}</p>`;
+        html += `</div>`;
         html += '</div>';
         
         if (data.error) {
-            html += `<div class="alert alert-warning"><strong>Error:</strong> ${data.error}</div>`;
+            html += `<div class="alert alert-warning"><strong>Issues:</strong> ${data.error}</div>`;
         }
         
         html += '</div>';
         resultsDiv.innerHTML = html;
+        
+        // Log health check
+        if (window.sisenseLogger) {
+            window.sisenseLogger.logUserAction('health_check_performed', { status: data.status });
+        }
+        
     } catch (error) {
-        resultsDiv.innerHTML = `<div class="alert alert-danger mt-3">Health check failed: ${error.message}</div>`;
+        resultsDiv.innerHTML = `<div class="alert alert-danger">Health check failed: ${error.message}</div>`;
+        
+        if (window.sisenseLogger) {
+            window.sisenseLogger.logSystemEvent('Health check failed', 'ERROR', { error: error.message });
+        }
     }
 }
 
-// Auto-load stats when page loads
+function refreshSystemStatus() {
+    if (window.dashboardManager) {
+        window.dashboardManager.loadQuickStats();
+        window.dashboardManager.loadRecentActivity();
+    }
+    
+    if (window.sisenseLogger) {
+        window.sisenseLogger.logUserAction('system_status_refreshed');
+    }
+}
+
+function refreshActivity() {
+    if (window.dashboardManager) {
+        window.dashboardManager.loadRecentActivity();
+    }
+}
+
+async function downloadSystemLogs() {
+    try {
+        const response = await fetch('/api/logs/download');
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sisense_logs_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            if (window.sisenseLogger) {
+                window.sisenseLogger.logUserAction('logs_downloaded');
+            }
+            
+            if (window.alertManager) {
+                window.alertManager.show('Logs downloaded successfully', 'success');
+            }
+        } else {
+            throw new Error('Download failed');
+        }
+    } catch (error) {
+        if (window.alertManager) {
+            window.alertManager.show('Failed to download logs: ' + error.message, 'error');
+        }
+    }
+}
+
+// Initialize dashboard when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    loadQuickStats();
+    window.dashboardManager = new DashboardManager();
 });
 </script>
+
+<style>
+.stat-card {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    padding: 1.5rem;
+    border-radius: var(--radius-large);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: var(--shadow-medium);
+    transition: var(--transition-fast);
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-heavy);
+}
+
+.stat-icon {
+    font-size: 2rem;
+    opacity: 0.9;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.status-section {
+    background: var(--bg-secondary);
+    padding: 1.5rem;
+    border-radius: var(--radius-medium);
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.status-item:last-child {
+    border-bottom: none;
+}
+
+.status-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.status-value {
+    color: var(--text-primary);
+}
+
+.action-card {
+    text-align: center;
+    transition: var(--transition-fast);
+}
+
+.action-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium);
+}
+
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+}
+
+.query-stats,
+.tool-stats {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.activity-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.activity-timeline {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.activity-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+}
+
+.activity-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.activity-time {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.activity-text {
+    color: var(--text-primary);
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.metric-item {
+    text-align: center;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-medium);
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.health-results {
+    margin-top: 1rem;
+}
+
+.health-details {
+    margin-top: 1rem;
+}
+
+.health-details p {
+    margin: 0.5rem 0;
+}
+
+.no-activity {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 2rem;
+}
+</style>
 {% endblock %}

@@ -21,6 +21,9 @@ class Config:
     SISENSE_URL: str = os.getenv('SISENSE_URL', 'https://localhost:8443')
     SISENSE_API_TOKEN: str = os.getenv('SISENSE_API_TOKEN', '')
     
+    # Demo mode (allows app to run without real Sisense credentials)
+    DEMO_MODE: bool = os.getenv('DEMO_MODE', 'False').lower() == 'true'
+    
     # Authentication settings
     JWT_TOKEN_CACHE_DURATION: int = int(os.getenv('JWT_TOKEN_CACHE_DURATION', '3600'))
     JWT_TOKEN_REFRESH_BUFFER: int = int(os.getenv('JWT_TOKEN_REFRESH_BUFFER', '300'))
@@ -52,11 +55,26 @@ class Config:
         Raises:
             ValueError: If required settings are missing or invalid.
         """
-        if not cls.SISENSE_URL:
-            raise ValueError("SISENSE_URL is required")
+        # In demo mode, skip validation
+        if cls.DEMO_MODE:
+            print("Running in DEMO MODE - Sisense features will be simulated")
+            return
+            
+        if not cls.SISENSE_URL or cls.SISENSE_URL == 'https://localhost:8443':
+            raise ValueError(
+                "SISENSE_URL is required and must be configured. "
+                "Please create a .env file with your Sisense server URL. "
+                "Copy .env.example to .env and update the values. "
+                "Or set DEMO_MODE=true to run without real Sisense connection."
+            )
         
-        if not cls.SISENSE_API_TOKEN:
-            raise ValueError("SISENSE_API_TOKEN is required")
+        if not cls.SISENSE_API_TOKEN or cls.SISENSE_API_TOKEN == '':
+            raise ValueError(
+                "SISENSE_API_TOKEN is required. "
+                "Please get an API token from your Sisense admin panel "
+                "(Admin > Settings > API Tokens) and add it to your .env file. "
+                "Or set DEMO_MODE=true to run without real Sisense connection."
+            )
         
         if not cls.SISENSE_URL.startswith(('http://', 'https://')):
             raise ValueError("SISENSE_URL must start with http:// or https://")

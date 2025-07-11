@@ -8,6 +8,7 @@ including listing connections and getting connection details.
 import logging
 from typing import Dict, List, Optional, Any
 
+from config import Config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client, SisenseAPIError, validate_response_data
 
@@ -28,10 +29,28 @@ def list_connections(
         
     Returns:
         List[Dict]: List of connection configurations.
-        
-    Raises:
-        SisenseAPIError: If request fails.
     """
+    # Demo mode - return sample connections
+    if Config.DEMO_MODE:
+        return [
+            {
+                "id": "demo-conn-1",
+                "name": "Demo MySQL Connection",
+                "type": "mysql",
+                "host": "demo.mysql.server",
+                "database": "sales_db",
+                "status": "connected"
+            },
+            {
+                "id": "demo-conn-2", 
+                "name": "Demo PostgreSQL Connection",
+                "type": "postgresql",
+                "host": "demo.postgres.server",
+                "database": "analytics_db",
+                "status": "connected"
+            }
+        ]
+    
     http_client = get_http_client()
     headers = get_auth_headers()
     

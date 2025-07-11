@@ -6,53 +6,242 @@
     <title>{% block title %}Sisense Flask Integration{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    {% block head %}{% endblock %}
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <h1>Sisense Flask Integration</h1>
-            <p>Production-grade REST API integration with Sisense v1/v2</p>
+    <!-- Top Header -->
+    <header class="top-header">
+        <div class="header-content">
+            <div class="header-left">
+                <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle Sidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="logo-section">
+                    <h1>Sisense Flask Integration</h1>
+                    <span class="version-badge">v2.0</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="connection-status" id="connection-status">
+                    <i class="fas fa-circle status-indicator" id="status-indicator"></i>
+                    <span id="status-text">Checking...</span>
+                </div>
+                <div class="search-container">
+                    <input type="text" id="global-search" placeholder="Search everywhere..." class="global-search">
+                    <div class="search-threshold">
+                        <label for="fuzzy-threshold">Fuzzy %:</label>
+                        <input type="range" id="fuzzy-threshold" min="1" max="100" value="80" class="threshold-slider">
+                        <span id="threshold-value">80</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
-    <nav class="nav">
-        <div class="container">
-            <ul>
-                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-                <li><a href="{{ url_for('data_models') }}">Data Models</a></li>
-                <li><a href="{{ url_for('dashboards') }}">Dashboards</a></li>
-                <li><a href="{{ url_for('connections') }}">Connections</a></li>
-                <li><a href="{{ url_for('query_sql') }}">SQL Query</a></li>
-                <li><a href="{{ url_for('query_jaql') }}">JAQL Query</a></li>
-                <li><a href="{{ url_for('api_docs') }}">API Docs</a></li>
-            </ul>
-        </div>
-    </nav>
-
-    <main class="main-content">
-        <div class="container">
-            <div id="alerts-container"></div>
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ 'danger' if category == 'error' else category }}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+    <div class="app-layout">
+        <!-- Left Sidebar Navigation -->
+        <aside class="left-sidebar" id="left-sidebar">
+            <nav class="sidebar-nav">
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="{{ url_for('dashboard') }}" class="nav-link" data-section="dashboard">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span class="nav-text">Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('data_models') }}" class="nav-link" data-section="data-models">
+                            <i class="fas fa-database"></i>
+                            <span class="nav-text">Data Models</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('dashboards') }}" class="nav-link" data-section="dashboards">
+                            <i class="fas fa-chart-bar"></i>
+                            <span class="nav-text">Dashboards</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('connections') }}" class="nav-link" data-section="connections">
+                            <i class="fas fa-plug"></i>
+                            <span class="nav-text">Connections</span>
+                        </a>
+                    </li>
+                    <li class="nav-separator"></li>
+                    <li class="nav-section-title">
+                        <span>Query Tools</span>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('query_sql') }}" class="nav-link" data-section="sql-query">
+                            <i class="fas fa-code"></i>
+                            <span class="nav-text">SQL Query</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('query_jaql') }}" class="nav-link" data-section="jaql-query">
+                            <i class="fas fa-terminal"></i>
+                            <span class="nav-text">JAQL Query</span>
+                        </a>
+                    </li>
+                    <li class="nav-separator"></li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('api_docs') }}" class="nav-link" data-section="api-docs">
+                            <i class="fas fa-book"></i>
+                            <span class="nav-text">API Docs</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
             
-            {% block content %}{% endblock %}
-        </div>
-    </main>
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer">
+                <div class="sidebar-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-clock"></i>
+                        <span id="uptime">--:--:--</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-memory"></i>
+                        <span id="memory-usage">-- MB</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
 
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2024 Sisense Flask Integration. Built with Flask and Sisense REST API v1/v2.</p>
-        </div>
-    </footer>
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="content-wrapper">
+                <!-- Flash Messages -->
+                <div id="alerts-container" class="alerts-container"></div>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} fade-in">
+                                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'info-circle' }}"></i>
+                                <span>{{ message }}</span>
+                                <button class="alert-close" onclick="this.parentElement.remove()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <!-- Page Content -->
+                {% block content %}{% endblock %}
+            </div>
+        </main>
 
+        <!-- Right Information Panel -->
+        <aside class="right-panel" id="right-panel">
+            <div class="panel-header">
+                <h3>Information</h3>
+                <button class="panel-toggle" id="right-panel-toggle" title="Toggle Panel">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            
+            <div class="panel-content">
+                <!-- Data Sources Panel -->
+                <div class="info-section" id="data-sources-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-server"></i> Data Sources</h4>
+                        <button class="refresh-btn" onclick="refreshDataSources()" title="Refresh">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div class="section-content" id="data-sources-list">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Elasticubes Panel -->
+                <div class="info-section" id="elasticubes-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-cubes"></i> Elasticubes</h4>
+                        <button class="refresh-btn" onclick="refreshElasticubes()" title="Refresh">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div class="section-content" id="elasticubes-list">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Panel -->
+                <div class="info-section" id="recent-activity-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-history"></i> Recent Activity</h4>
+                    </div>
+                    <div class="section-content" id="recent-activity-list">
+                        <div class="activity-item">
+                            <span class="activity-time">Just now</span>
+                            <span class="activity-text">Application started</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Bottom Logs Panel -->
+    <div class="logs-panel" id="logs-panel">
+        <div class="logs-header">
+            <div class="logs-title">
+                <i class="fas fa-list-alt"></i>
+                <span>System Logs</span>
+                <span class="log-count" id="log-count">(0)</span>
+            </div>
+            <div class="logs-controls">
+                <select id="log-level-filter" class="log-filter">
+                    <option value="all">All Levels</option>
+                    <option value="INFO">Info</option>
+                    <option value="WARNING">Warning</option>
+                    <option value="ERROR">Error</option>
+                </select>
+                <button id="clear-logs" class="clear-btn" title="Clear Logs">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <button id="download-logs" class="download-btn" title="Download Logs">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button id="logs-toggle" class="logs-toggle" title="Toggle Logs Panel">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
+            </div>
+        </div>
+        <div class="logs-content" id="logs-content">
+            <div class="log-entry welcome-log">
+                <span class="log-timestamp" id="welcome-timestamp"></span>
+                <span class="log-level info">INFO</span>
+                <span class="log-message">Sisense Flask Integration v2.0 - Ready</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay for mobile -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- Scripts -->
+    <script>
+        // Set welcome timestamp
+        document.addEventListener('DOMContentLoaded', function() {
+            const timestamp = document.getElementById('welcome-timestamp');
+            if (timestamp) {
+                const now = new Date();
+                timestamp.textContent = '[' + now.toISOString().slice(0, 19).replace('T', ' ') + ']';
+            }
+        });
+    </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/panels.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/logger.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

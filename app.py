@@ -7,14 +7,18 @@ authentication, and response formatting.
 """
 
 import logging
-from flask import Flask, request, jsonify, make_response, render_template, flash, redirect, url_for
+import time
+import webbrowser
+import threading
+from datetime import datetime
+from flask import Flask, request, jsonify, make_response, render_template, flash, redirect, url_for, send_file
 from werkzeug.exceptions import HTTPException
 import traceback
 
 from config import Config
 from sisense import (
     auth, datamodels, connections, dashboards, 
-    widgets, sql, jaql, utils
+    widgets, sql, jaql, utils, logger as sisense_logger_module, enhanced_auth
 )
 
 
@@ -29,21 +33,25 @@ def create_app():
     
     # Configure logging
     utils.setup_logging()
-    logger = logging.getLogger(__name__)
+    app_logger = logging.getLogger(__name__)
+    
+    # Initialize enhanced logging system
+    sisense_logger = sisense_logger_module.get_logger()
+    sisense_logger.log_system_event("Application starting", "INFO", {"version": "2.0"})
     
     # Validate configuration
     try:
         Config.validate_required_settings()
-        logger.info("Configuration validated successfully")
+        app_logger.info("Configuration validated successfully")
     except ValueError as e:
-        logger.error(f"Configuration validation failed: {e}")
+        app_logger.error(f"Configuration validation failed: {e}")
         raise
     
     # Global error handlers
     @app.errorhandler(utils.SisenseAPIError)
     def handle_sisense_api_error(error):
         """Handle Sisense API errors."""
-        logger.error(f"Sisense API error: {error}")
+        app_logger.error(f"Sisense API error: {error}")
         return jsonify({
             'error': 'sisense_api_error',
             'message': str(error),
@@ -54,7 +62,7 @@ def create_app():
     @app.errorhandler(HTTPException)
     def handle_http_exception(error):
         """Handle HTTP exceptions."""
-        logger.error(f"HTTP error: {error}")
+        app_logger.error(f"HTTP error: {error}")
         return jsonify({
             'error': 'http_error',
             'message': error.description,
@@ -64,8 +72,8 @@ def create_app():
     @app.errorhandler(Exception)
     def handle_generic_error(error):
         """Handle unexpected errors."""
-        logger.error(f"Unexpected error: {error}")
-        logger.error(traceback.format_exc())
+        app_logger.error(f"Unexpected error: {error}")
+        app_logger.error(traceback.format_exc())
         return jsonify({
             'error': 'internal_error',
             'message': 'An unexpected error occurred',
@@ -75,23 +83,16 @@ def create_app():
     # Health check endpoint
     @app.route('/health', methods=['GET'])
     def health_check():
-        """Health check endpoint."""
+        """Enhanced health check endpoint with connection details."""
         try:
-            # Test authentication
-            auth_valid = auth.validate_authentication()
-            
-            return jsonify({
-                'status': 'healthy',
-                'authentication': 'valid' if auth_valid else 'invalid',
-                'sisense_url': Config.get_sisense_base_url(),
-                'timestamp': utils.time.time()
-            })
+            health = enhanced_auth.get_connection_health()
+            return jsonify(health)
         except Exception as e:
-            logger.error(f"Health check failed: {e}")
+            app_logger.error(f"Health check failed: {e}")
             return jsonify({
-                'status': 'unhealthy',
+                'overall_status': 'unhealthy',
                 'error': str(e),
-                'timestamp': utils.time.time()
+                'timestamp': time.time()
             }), 500
     
     # Authentication endpoints
@@ -105,21 +106,61 @@ def create_app():
                 'token_type': 'Bearer'
             })
         except Exception as e:
-            logger.error(f"Login failed: {e}")
+            app_logger.error(f"Login failed: {e}")
             raise
     
     @app.route('/api/auth/validate', methods=['GET'])
     def validate_auth():
-        """Validate current authentication."""
+        """Enhanced authentication validation with detailed status."""
         try:
-            is_valid = auth.validate_authentication()
+            is_valid, message = enhanced_auth.validate_authentication()
             return jsonify({
                 'valid': is_valid,
-                'timestamp': utils.time.time()
+                'message': message,
+                'timestamp': time.time(),
+                'user_info': enhanced_auth.get_user_info() if is_valid else None
             })
         except Exception as e:
-            logger.error(f"Auth validation failed: {e}")
-            raise
+            app_logger.error(f"Auth validation failed: {e}")
+            return jsonify({
+                'valid': False,
+                'message': str(e),
+                'timestamp': time.time()
+            }), 500
+    
+    @app.route('/api/auth/status', methods=['GET'])
+    def auth_status():
+        """Get comprehensive authentication status."""
+        try:
+            status = enhanced_auth.get_enhanced_auth_status()
+            return jsonify(status)
+        except Exception as e:
+            app_logger.error(f"Auth status failed: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/auth/user-info', methods=['GET'])
+    def user_info():
+        """Get current user information."""
+        try:
+            user_data = enhanced_auth.get_user_info()
+            return jsonify({
+                'user': user_data,
+                'timestamp': time.time()
+            })
+        except Exception as e:
+            app_logger.error(f"User info failed: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    
+    @app.route('/api/test-endpoints', methods=['GET'])
+    def test_endpoints():
+        """Test various API endpoints for functionality."""
+        try:
+            results = enhanced_auth.test_api_endpoints()
+            return jsonify(results)
+        except Exception as e:
+            app_logger.error(f"Endpoint testing failed: {e}")
+            return jsonify({'error': str(e)}), 500
     
     # Data models endpoints (v2)
     @app.route('/api/datamodels', methods=['GET'])
@@ -134,7 +175,7 @@ def create_app():
                 'type_filter': model_type
             })
         except Exception as e:
-            logger.error(f"Failed to list data models: {e}")
+            app_logger.error(f"Failed to list data models: {e}")
             raise
     
     @app.route('/api/datamodels/<model_oid>', methods=['GET'])
@@ -144,7 +185,7 @@ def create_app():
             model = datamodels.get_model(model_oid)
             return jsonify(model)
         except Exception as e:
-            logger.error(f"Failed to get data model {model_oid}: {e}")
+            app_logger.error(f"Failed to get data model {model_oid}: {e}")
             raise
     
     @app.route('/api/datamodels/<model_oid>/tables', methods=['GET'])
@@ -158,7 +199,7 @@ def create_app():
                 'model_oid': model_oid
             })
         except Exception as e:
-            logger.error(f"Failed to get tables for model {model_oid}: {e}")
+            app_logger.error(f"Failed to get tables for model {model_oid}: {e}")
             raise
     
     @app.route('/api/datamodels/<model_oid>/columns', methods=['GET'])
@@ -174,7 +215,7 @@ def create_app():
                 'table_filter': table_name
             })
         except Exception as e:
-            logger.error(f"Failed to get columns for model {model_oid}: {e}")
+            app_logger.error(f"Failed to get columns for model {model_oid}: {e}")
             raise
     
     @app.route('/api/datamodels/export/schema', methods=['GET'])
@@ -196,7 +237,7 @@ def create_app():
             )
             return jsonify(schema)
         except Exception as e:
-            logger.error(f"Failed to export schema: {e}")
+            app_logger.error(f"Failed to export schema: {e}")
             raise
     
     # Connections endpoints (v2)
@@ -214,7 +255,7 @@ def create_app():
                 'type_filter': connection_type
             })
         except Exception as e:
-            logger.error(f"Failed to list connections: {e}")
+            app_logger.error(f"Failed to list connections: {e}")
             raise
     
     @app.route('/api/connections/<connection_id>', methods=['GET'])
@@ -225,7 +266,7 @@ def create_app():
             connection = connections.get_connection(connection_id, include_credentials)
             return jsonify(connection)
         except Exception as e:
-            logger.error(f"Failed to get connection {connection_id}: {e}")
+            app_logger.error(f"Failed to get connection {connection_id}: {e}")
             raise
     
     @app.route('/api/connections/<connection_id>/test', methods=['POST'])
@@ -235,7 +276,7 @@ def create_app():
             test_result = connections.test_connection(connection_id)
             return jsonify(test_result)
         except Exception as e:
-            logger.error(f"Failed to test connection {connection_id}: {e}")
+            app_logger.error(f"Failed to test connection {connection_id}: {e}")
             raise
     
     # Dashboards endpoints (v1)
@@ -257,7 +298,7 @@ def create_app():
                 'shared_filter': shared
             })
         except Exception as e:
-            logger.error(f"Failed to list dashboards: {e}")
+            app_logger.error(f"Failed to list dashboards: {e}")
             raise
     
     @app.route('/api/dashboards/<dashboard_id>', methods=['GET'])
@@ -268,7 +309,7 @@ def create_app():
             dashboard = dashboards.get_dashboard(dashboard_id, fields)
             return jsonify(dashboard)
         except Exception as e:
-            logger.error(f"Failed to get dashboard {dashboard_id}: {e}")
+            app_logger.error(f"Failed to get dashboard {dashboard_id}: {e}")
             raise
     
     @app.route('/api/dashboards/<dashboard_id>/widgets', methods=['GET'])
@@ -282,7 +323,7 @@ def create_app():
                 'dashboard_id': dashboard_id
             })
         except Exception as e:
-            logger.error(f"Failed to get widgets for dashboard {dashboard_id}: {e}")
+            app_logger.error(f"Failed to get widgets for dashboard {dashboard_id}: {e}")
             raise
     
     @app.route('/api/dashboards/<dashboard_id>/summary', methods=['GET'])
@@ -292,7 +333,7 @@ def create_app():
             summary = dashboards.get_dashboard_summary(dashboard_id)
             return jsonify(summary)
         except Exception as e:
-            logger.error(f"Failed to get dashboard summary {dashboard_id}: {e}")
+            app_logger.error(f"Failed to get dashboard summary {dashboard_id}: {e}")
             raise
     
     # Widgets endpoints (v1)
@@ -304,7 +345,7 @@ def create_app():
             widget = widgets.get_widget(widget_id, fields)
             return jsonify(widget)
         except Exception as e:
-            logger.error(f"Failed to get widget {widget_id}: {e}")
+            app_logger.error(f"Failed to get widget {widget_id}: {e}")
             raise
     
     @app.route('/api/widgets/<widget_id>/jaql', methods=['GET'])
@@ -314,7 +355,7 @@ def create_app():
             widget_jaql = widgets.get_widget_jaql(widget_id)
             return jsonify(widget_jaql)
         except Exception as e:
-            logger.error(f"Failed to get JAQL for widget {widget_id}: {e}")
+            app_logger.error(f"Failed to get JAQL for widget {widget_id}: {e}")
             raise
     
     @app.route('/api/widgets/<widget_id>/data', methods=['GET', 'POST'])
@@ -328,7 +369,7 @@ def create_app():
             widget_data = widgets.get_widget_data(widget_id, filters)
             return jsonify(widget_data)
         except Exception as e:
-            logger.error(f"Failed to get data for widget {widget_id}: {e}")
+            app_logger.error(f"Failed to get data for widget {widget_id}: {e}")
             raise
     
     @app.route('/api/widgets/<widget_id>/summary', methods=['GET'])
@@ -338,7 +379,7 @@ def create_app():
             summary = widgets.get_widget_summary(widget_id)
             return jsonify(summary)
         except Exception as e:
-            logger.error(f"Failed to get widget summary {widget_id}: {e}")
+            app_logger.error(f"Failed to get widget summary {widget_id}: {e}")
             raise
     
     # SQL endpoints
@@ -357,7 +398,7 @@ def create_app():
             result = sql.execute_sql(datasource, query, limit, offset, timeout)
             return jsonify(result)
         except Exception as e:
-            logger.error(f"Failed to execute SQL query on {datasource}: {e}")
+            app_logger.error(f"Failed to execute SQL query on {datasource}: {e}")
             raise
     
     @app.route('/api/datasources/<datasource>/sql/validate', methods=['POST'])
@@ -371,7 +412,7 @@ def create_app():
             validation_result = sql.validate_sql_query(query)
             return jsonify(validation_result)
         except Exception as e:
-            logger.error(f"Failed to validate SQL query: {e}")
+            app_logger.error(f"Failed to validate SQL query: {e}")
             raise
     
     # JAQL endpoints
@@ -389,7 +430,7 @@ def create_app():
             result = jaql.execute_jaql(datasource, jaql_query, format_type, timeout)
             return jsonify(result)
         except Exception as e:
-            logger.error(f"Failed to execute JAQL query on {datasource}: {e}")
+            app_logger.error(f"Failed to execute JAQL query on {datasource}: {e}")
             raise
     
     @app.route('/api/datasources/<datasource>/jaql/metadata', methods=['GET'])
@@ -400,7 +441,7 @@ def create_app():
             metadata = jaql.get_jaql_metadata(datasource, table_name)
             return jsonify(metadata)
         except Exception as e:
-            logger.error(f"Failed to get JAQL metadata for {datasource}: {e}")
+            app_logger.error(f"Failed to get JAQL metadata for {datasource}: {e}")
             raise
     
     @app.route('/api/datasources/<datasource>/catalog', methods=['GET'])
@@ -410,7 +451,7 @@ def create_app():
             catalog = jaql.get_datasource_catalog(datasource)
             return jsonify(catalog)
         except Exception as e:
-            logger.error(f"Failed to get catalog for {datasource}: {e}")
+            app_logger.error(f"Failed to get catalog for {datasource}: {e}")
             raise
     
     # Search endpoints
@@ -429,7 +470,7 @@ def create_app():
                 'search_term': search_term
             })
         except Exception as e:
-            logger.error(f"Failed to search dashboards: {e}")
+            app_logger.error(f"Failed to search dashboards: {e}")
             raise
     
     @app.route('/api/search/datamodels', methods=['GET'])
@@ -447,8 +488,101 @@ def create_app():
                 'search_term': search_term
             })
         except Exception as e:
-            logger.error(f"Failed to search data models: {e}")
+            app_logger.error(f"Failed to search data models: {e}")
             raise
+    
+    # Logging endpoints
+    @app.route('/api/logs/recent', methods=['GET'])
+    def get_recent_logs():
+        """Get recent logs from buffer."""
+        try:
+            limit = request.args.get('limit', 100, type=int)
+            sisense_logger = sisense_logger_module.get_logger()
+            logs = sisense_logger.get_recent_logs(limit)
+            return jsonify({
+                'logs': logs,
+                'count': len(logs)
+            })
+        except Exception as e:
+            app_logger.error(f"Failed to get recent logs: {e}")
+            return jsonify({'error': 'Failed to get logs'}), 500
+    
+    @app.route('/api/logs/add', methods=['POST'])
+    def add_log_entry():
+        """Add log entry from frontend."""
+        try:
+            data = request.json
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            log_type = data.get('type', 'frontend')
+            message = data.get('message', '')
+            metadata = data.get('metadata', {})
+            
+            sisense_logger = sisense_logger_module.get_logger()
+            
+            if log_type == 'api_call':
+                sisense_logger.log_api_call(
+                    method=metadata.get('method', 'UNKNOWN'),
+                    endpoint=metadata.get('endpoint', ''),
+                    payload=metadata.get('payload'),
+                    response_status=metadata.get('responseStatus'),
+                    response_time=metadata.get('responseTime')
+                )
+            elif log_type == 'user_action':
+                sisense_logger.log_user_action(
+                    action=metadata.get('action', message),
+                    details=metadata.get('details')
+                )
+            elif log_type == 'system_event':
+                sisense_logger.log_system_event(
+                    event=metadata.get('event', message),
+                    level=metadata.get('level', 'INFO'),
+                    details=metadata.get('details')
+                )
+            else:
+                # Generic log entry
+                sisense_logger.log_system_event(message, 'INFO', metadata)
+            
+            return jsonify({'status': 'success'})
+        except Exception as e:
+            app_logger.error(f"Failed to add log entry: {e}")
+            return jsonify({'error': 'Failed to add log entry'}), 500
+    
+    @app.route('/api/logs/download', methods=['GET'])
+    def download_logs():
+        """Download log files."""
+        try:
+            sisense_logger = sisense_logger_module.get_logger()
+            
+            # Get current log file
+            if hasattr(sisense_logger, 'current_log_file'):
+                import os
+                if os.path.exists(sisense_logger.current_log_file):
+                    return send_file(
+                        sisense_logger.current_log_file,
+                        as_attachment=True,
+                        download_name=f"sisense_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                    )
+            
+            return jsonify({'error': 'Log file not found'}), 404
+        except Exception as e:
+            app_logger.error(f"Failed to download logs: {e}")
+            return jsonify({'error': 'Failed to download logs'}), 500
+    
+    @app.route('/api/logs/files', methods=['GET'])
+    def list_log_files():
+        """List available log files."""
+        try:
+            sisense_logger = sisense_logger_module.get_logger()
+            log_files = sisense_logger.get_log_files()
+            return jsonify({
+                'files': log_files,
+                'count': len(log_files)
+            })
+        except Exception as e:
+            app_logger.error(f"Failed to list log files: {e}")
+            return jsonify({'error': 'Failed to list log files'}), 500
     
     # Web UI Routes
     @app.route('/')
@@ -488,6 +622,17 @@ def create_app():
         return render_template('api_docs.html', 
                              base_url=request.host_url.rstrip('/'))
     
+    @app.route('/query-editor')
+    def query_editor():
+        """Advanced query editor page."""
+        return render_template('advanced_query_editor.html')
+    
+    @app.route('/connection-status')
+    def connection_status():
+        """Enhanced connection status page."""
+        return render_template('enhanced_connection_status.html',
+                             sisense_url=Config.get_sisense_base_url())
+    
     # Individual item detail routes
     @app.route('/dashboard/<dashboard_id>')
     def dashboard_detail(dashboard_id):
@@ -522,7 +667,7 @@ def create_app():
             flash(f'Error loading widget: {str(e)}', 'error')
             return redirect(url_for('dashboards'))
 
-    logger.info("Flask application configured successfully")
+    app_logger.info("Flask application configured successfully")
     return app
 
 
@@ -530,7 +675,20 @@ def create_app():
 app = create_app()
 
 
+def open_browser():
+    """Open browser to the application URL after a short delay."""
+    def open_url():
+        time.sleep(1.5)  # Wait for server to start
+        webbrowser.open(f'http://localhost:{Config.FLASK_PORT}')
+    
+    threading.Thread(target=open_url, daemon=True).start()
+
+
 if __name__ == '__main__':
+    # Open browser automatically in development mode
+    if Config.FLASK_DEBUG:
+        open_browser()
+    
     # Run development server
     app.run(
         host='0.0.0.0',

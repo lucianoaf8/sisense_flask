@@ -25,6 +25,9 @@ def get_auth_headers() -> Dict[str, str]:
     Raises:
         SisenseAPIError: If API token is not configured.
     """
+    if Config.DEMO_MODE:
+        return {"Authorization": "Bearer demo-token", "Content-Type": "application/json"}
+        
     if not Config.SISENSE_API_TOKEN:
         raise SisenseAPIError("SISENSE_API_TOKEN is not configured")
     

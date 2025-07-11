@@ -2,528 +2,851 @@
 
 {% block title %}JAQL Query - Sisense Flask Integration{% endblock %}
 
+{% block head %}
+<style>
+    .query-editor {
+        background: #1e1e1e;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #333;
+        position: relative;
+        margin: 1rem 0;
+    }
+    
+    .editor-toolbar {
+        background: #2d2d2d;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid #333;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        font-size: 0.875rem;
+    }
+    
+    .editor-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .editor-btn {
+        padding: 0.25rem 0.5rem;
+        background: #4a4a4a;
+        border: 1px solid #666;
+        border-radius: 4px;
+        color: #ccc;
+        cursor: pointer;
+        font-size: 0.75rem;
+        transition: all 0.2s ease;
+    }
+    
+    .editor-btn:hover {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .editor-content {
+        position: relative;
+        min-height: 400px;
+    }
+    
+    .code-editor {
+        width: 100%;
+        min-height: 400px;
+        background: #1e1e1e;
+        color: #d4d4d4;
+        border: none;
+        outline: none;
+        padding: 1rem;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        resize: vertical;
+        tab-size: 2;
+    }
+    
+    .line-numbers {
+        position: absolute;
+        left: 0;
+        top: 0;
+        background: #2d2d2d;
+        border-right: 1px solid #333;
+        padding: 1rem 0.5rem;
+        color: #666;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        user-select: none;
+        min-width: 40px;
+        text-align: right;
+    }
+    
+    .code-editor.with-line-numbers {
+        padding-left: 60px;
+    }
+    
+    .editor-footer {
+        background: #2d2d2d;
+        padding: 0.5rem 1rem;
+        border-top: 1px solid #333;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: #999;
+    }
+    
+    .editor-status {
+        display: flex;
+        gap: 1rem;
+    }
+    
+    .keyboard-shortcuts {
+        display: flex;
+        gap: 1rem;
+    }
+    
+    .shortcut {
+        color: #667eea;
+    }
+    
+    .query-results-preview {
+        background: #1e1e1e;
+        border-radius: 8px;
+        margin-top: 1rem;
+        border: 1px solid #333;
+        max-height: 400px;
+        overflow: auto;
+    }
+    
+    .results-toolbar {
+        background: #2d2d2d;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid #333;
+        color: #ccc;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .results-content {
+        padding: 1rem;
+        color: #d4d4d4;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 0.875rem;
+    }
+    
+    .query-performance {
+        background: #2d2d2d;
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin-top: 1rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+    }
+    
+    .perf-metric {
+        text-align: center;
+    }
+    
+    .perf-value {
+        font-size: 1.25rem;
+        font-weight: bold;
+        color: #667eea;
+    }
+    
+    .perf-label {
+        font-size: 0.75rem;
+        color: #999;
+        margin-top: 0.25rem;
+    }
+
+    .jaql-help {
+        background: rgba(103, 126, 234, 0.1);
+        border: 1px solid rgba(103, 126, 234, 0.3);
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .jaql-help h4 {
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
+
+    .jaql-examples {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .jaql-example {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+        padding: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .jaql-example:hover {
+        background: rgba(103, 126, 234, 0.1);
+    }
+
+    .jaql-example h5 {
+        margin-bottom: 0.5rem;
+        color: #667eea;
+    }
+
+    @media (max-width: 768px) {
+        .editor-toolbar {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .query-performance {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .jaql-examples {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="fade-in">
     <div class="card">
         <h2>JAQL Query Interface</h2>
-        <p>Execute JAQL queries against your Sisense data sources. JAQL is Sisense's proprietary query language.</p>
+        <p>Execute JAQL queries against your Sisense data sources. JAQL is Sisense's proprietary query language with advanced JSON-based syntax.</p>
         
         <form id="jaql-form">
             <div class="form-group">
-                <label for="jaql-datasource">Data Source:</label>
-                <input type="text" id="jaql-datasource" name="datasource" class="form-control" 
-                       placeholder="Enter data source name or OID" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="jaql-query">JAQL Query (JSON):</label>
-                <textarea id="jaql-query" name="jaql" class="form-control" rows="12" 
-                          placeholder='{"datasource": "your_datasource", "metadata": []}' required></textarea>
+                <label for="datasource">Data Source:</label>
+                <input type="text" id="datasource" name="datasource" class="form-control" 
+                       placeholder="Enter data source name or OID" required value="Sample ElastiCube">
             </div>
             
             <div class="grid">
                 <div class="form-group">
-                    <label for="jaql-format">Response Format:</label>
-                    <select id="jaql-format" name="format" class="form-control">
+                    <label for="format">Response Format:</label>
+                    <select id="format" name="format" class="form-control">
                         <option value="json">JSON</option>
                         <option value="csv">CSV</option>
                         <option value="excel">Excel</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="jaql-timeout">Query Timeout (seconds):</label>
-                    <input type="number" id="jaql-timeout" name="timeout" class="form-control" 
-                           placeholder="30" min="1" max="300">
+                    <label for="timeout">Timeout (seconds):</label>
+                    <input type="number" id="timeout" name="timeout" class="form-control" 
+                           placeholder="30" min="5" max="300" value="30">
                 </div>
-            </div>
-            
-            <div class="form-group">
-                <button type="submit" class="btn btn-primary">Execute JAQL</button>
-                <button type="button" class="btn btn-secondary" onclick="validateJAQL()">Validate JAQL</button>
-                <button type="button" class="btn btn-secondary" onclick="formatJAQL()">Format JSON</button>
-                <button type="button" class="btn btn-secondary" onclick="clearJAQL()">Clear</button>
-                <button type="button" class="btn btn-success" onclick="loadSampleJAQL()">Sample JAQL</button>
             </div>
         </form>
     </div>
 
-    <!-- JAQL Builder Tool -->
-    <div class="card">
-        <h3>JAQL Builder</h3>
-        <p>Build JAQL queries using a simple interface</p>
+    <div class="jaql-help">
+        <h4>JAQL Quick Reference</h4>
+        <p>JAQL (JSON Application Query Language) uses JSON structure to define queries. Key components:</p>
+        <ul>
+            <li><strong>datasource:</strong> The data source name or OID</li>
+            <li><strong>metadata:</strong> Array of field definitions with dimensions and measures</li>
+            <li><strong>panel:</strong> "columns", "values", or "filters" to specify field placement</li>
+            <li><strong>jaql:</strong> Field-specific query definition with aggregations</li>
+        </ul>
         
-        <div class="grid">
-            <div class="form-group">
-                <label for="builder-datasource">Data Source:</label>
-                <input type="text" id="builder-datasource" class="form-control" 
-                       placeholder="Enter data source name">
+        <div class="jaql-examples">
+            <div class="jaql-example" onclick="loadJaqlExample('simple')">
+                <h5>Simple Query</h5>
+                <p>Basic dimension and measure query</p>
             </div>
-            <div class="form-group">
-                <label for="builder-table">Table:</label>
-                <input type="text" id="builder-table" class="form-control" 
-                       placeholder="Enter table name">
+            <div class="jaql-example" onclick="loadJaqlExample('filtered')">
+                <h5>Filtered Query</h5>
+                <p>Query with date and category filters</p>
+            </div>
+            <div class="jaql-example" onclick="loadJaqlExample('aggregated')">
+                <h5>Aggregated Query</h5>
+                <p>Multiple measures with grouping</p>
+            </div>
+            <div class="jaql-example" onclick="loadJaqlExample('complex')">
+                <h5>Complex Query</h5>
+                <p>Advanced query with custom formulas</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="query-editor">
+        <div class="editor-toolbar">
+            <div class="editor-info">
+                <strong>JAQL Query Editor</strong>
+            </div>
+            <div class="editor-actions">
+                <button class="editor-btn" onclick="formatQuery()">Format JSON</button>
+                <button class="editor-btn" onclick="validateQuery()">Validate</button>
+                <button class="editor-btn" onclick="toggleLineNumbers()">Lines</button>
+                <button class="editor-btn" onclick="toggleFullscreen()">⛶</button>
+                <button class="editor-btn" onclick="executeQuery()">Execute</button>
             </div>
         </div>
         
-        <div class="form-group">
-            <label for="builder-columns">Columns (comma-separated):</label>
-            <input type="text" id="builder-columns" class="form-control" 
-                   placeholder="column1, column2, column3">
+        <div class="editor-content">
+            <div class="line-numbers" id="lineNumbers">1</div>
+            <textarea 
+                class="code-editor with-line-numbers" 
+                id="queryEditor"
+                placeholder="Enter your JAQL query here..."
+                spellcheck="false"
+            ></textarea>
         </div>
         
-        <div class="form-group">
-            <label for="builder-limit">Row Limit:</label>
-            <input type="number" id="builder-limit" class="form-control" 
-                   placeholder="1000" min="1" max="10000">
-        </div>
-        
-        <div class="form-group">
-            <button class="btn btn-primary" onclick="buildJAQL()">Build JAQL Query</button>
-            <button class="btn btn-secondary" onclick="getDataSourceMetadata()">Get Metadata</button>
-        </div>
-    </div>
-
-    <!-- Metadata Results -->
-    <div id="metadata-results" style="display: none;">
-        <div class="card">
-            <h3>Data Source Metadata</h3>
-            <div id="metadata-content"></div>
-        </div>
-    </div>
-
-    <!-- JAQL Validation Results -->
-    <div id="jaql-validation-results" style="display: none;">
-        <div class="card">
-            <h3>JAQL Validation</h3>
-            <div id="jaql-validation-content"></div>
-        </div>
-    </div>
-
-    <!-- JAQL Results -->
-    <div class="card">
-        <h3>JAQL Results</h3>
-        <div id="jaql-results">
-            <div class="alert alert-info">Execute a JAQL query to see results here.</div>
-        </div>
-        <div id="jaql-result-actions" style="display: none;">
-            <button class="btn btn-success btn-sm" onclick="exportJAQLResults('json')">Export JSON</button>
-            <button class="btn btn-secondary btn-sm" onclick="copyJAQLResults()">Copy to Clipboard</button>
-        </div>
-    </div>
-
-    <!-- Sample JAQL Modal -->
-    <div id="sample-jaql-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Sample JAQL Queries</h3>
-                <button class="btn-close" onclick="closeSampleJAQLModal()">×</button>
+        <div class="editor-footer">
+            <div class="editor-status">
+                <span id="cursorPosition">Line 1, Col 1</span>
+                <span id="queryLength">0 characters</span>
+                <span>JAQL Mode</span>
             </div>
-            <div class="modal-body">
-                <div class="sample-jaql" onclick="useSampleJAQL(this)">
-                    <h4>Basic Select</h4>
-                    <code>{
-  "datasource": "your_datasource",
-  "metadata": [
-    {
-      "jaql": {
-        "dim": "[Table].[Column]",
-        "datatype": "text"
-      },
-      "panel": "columns"
-    }
-  ]
-}</code>
-                </div>
-                <div class="sample-jaql" onclick="useSampleJAQL(this)">
-                    <h4>Count Aggregation</h4>
-                    <code>{
-  "datasource": "your_datasource",
-  "metadata": [
-    {
-      "jaql": {
-        "dim": "[Table].[Column]",
-        "datatype": "text"
-      },
-      "panel": "columns"
-    },
-    {
-      "jaql": {
-        "agg": "count",
-        "title": "Count"
-      },
-      "panel": "values"
-    }
-  ]
-}</code>
-                </div>
-                <div class="sample-jaql" onclick="useSampleJAQL(this)">
-                    <h4>Filtered Query</h4>
-                    <code>{
-  "datasource": "your_datasource",
-  "metadata": [
-    {
-      "jaql": {
-        "dim": "[Table].[Column]",
-        "datatype": "text"
-      },
-      "panel": "columns"
-    },
-    {
-      "jaql": {
-        "dim": "[Table].[FilterColumn]",
-        "filter": {
-          "equals": "value"
-        }
-      },
-      "panel": "filters"
-    }
-  ]
-}</code>
-                </div>
+            <div class="keyboard-shortcuts">
+                <span class="shortcut">Ctrl+Enter: Execute</span>
+                <span class="shortcut">Ctrl+/: Comment</span>
+                <span class="shortcut">Ctrl+Space: Format</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="query-results-preview" id="resultsPreview" style="display: none;">
+        <div class="results-toolbar">
+            <span>Query Results</span>
+            <div>
+                <button class="editor-btn" onclick="exportResults()">Export</button>
+                <button class="editor-btn" onclick="closeResults()">×</button>
+            </div>
+        </div>
+        <div class="results-content" id="resultsContent"></div>
+        <div class="query-performance" id="queryPerformance">
+            <div class="perf-metric">
+                <div class="perf-value" id="executionTime">--</div>
+                <div class="perf-label">Execution Time</div>
+            </div>
+            <div class="perf-metric">
+                <div class="perf-value" id="rowCount">--</div>
+                <div class="perf-label">Rows Returned</div>
+            </div>
+            <div class="perf-metric">
+                <div class="perf-value" id="dataSize">--</div>
+                <div class="perf-label">Data Size</div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
-let currentJAQLResults = null;
-
-function buildJAQL() {
-    const datasource = document.getElementById('builder-datasource').value;
-    const table = document.getElementById('builder-table').value;
-    const columns = document.getElementById('builder-columns').value;
-    const limit = document.getElementById('builder-limit').value;
-    
-    if (!datasource || !table || !columns) {
-        window.sisenseUI.showAlert('Please provide datasource, table, and columns', 'warning');
-        return;
-    }
-    
-    const columnList = columns.split(',').map(col => col.trim());
-    const metadata = columnList.map(column => ({
-        jaql: {
-            dim: `[${table}].[${column}]`,
-            datatype: "text"
-        },
-        panel: "columns"
-    }));
-    
-    const jaqlQuery = {
-        datasource: datasource,
-        metadata: metadata
-    };
-    
-    if (limit) {
-        jaqlQuery.count = parseInt(limit);
-    }
-    
-    document.getElementById('jaql-query').value = JSON.stringify(jaqlQuery, null, 2);
-    document.getElementById('jaql-datasource').value = datasource;
-    
-    window.sisenseUI.showAlert('JAQL query built successfully', 'success');
-}
-
-async function getDataSourceMetadata() {
-    const datasource = document.getElementById('builder-datasource').value;
-    
-    if (!datasource) {
-        window.sisenseUI.showAlert('Please provide a datasource name', 'warning');
-        return;
-    }
-    
-    const metadataDiv = document.getElementById('metadata-results');
-    const contentDiv = document.getElementById('metadata-content');
-    
-    try {
-        contentDiv.innerHTML = '<div class="spinner"></div>';
-        metadataDiv.style.display = 'block';
+class JAQLQueryEditor {
+    constructor() {
+        this.jaqlKeywords = [
+            'datasource', 'metadata', 'jaql', 'panel', 'dim', 'agg',
+            'filter', 'equals', 'contains', 'startsWith', 'endsWith',
+            'between', 'in', 'isNull', 'isNotNull', 'count', 'sum', 'avg',
+            'max', 'min', 'median', 'stdev', 'columns', 'values', 'filters'
+        ];
         
-        const response = await fetch(`/api/datasources/${datasource}/jaql/metadata`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            contentDiv.innerHTML = `<div class="code-block"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
-        } else {
-            contentDiv.innerHTML = `<div class="alert alert-danger">Failed to get metadata: ${data.message}</div>`;
-        }
-    } catch (error) {
-        contentDiv.innerHTML = `<div class="alert alert-danger">Metadata error: ${error.message}</div>`;
-    }
-}
-
-async function validateJAQL() {
-    const jaqlQuery = document.getElementById('jaql-query').value;
-    
-    if (!jaqlQuery) {
-        window.sisenseUI.showAlert('Please provide a JAQL query', 'warning');
-        return;
-    }
-    
-    const validationDiv = document.getElementById('jaql-validation-results');
-    const contentDiv = document.getElementById('jaql-validation-content');
-    
-    try {
-        const parsedJAQL = JSON.parse(jaqlQuery);
-        
-        contentDiv.innerHTML = '<div class="spinner"></div>';
-        validationDiv.style.display = 'block';
-        
-        // Simple client-side validation
-        const validation = {
-            valid: true,
-            warnings: [],
-            errors: []
+        this.examples = {
+            simple: {
+                "datasource": "Sample ElastiCube",
+                "metadata": [
+                    {
+                        "jaql": {
+                            "dim": "[Category].[Category]",
+                            "datatype": "text"
+                        },
+                        "panel": "columns"
+                    },
+                    {
+                        "jaql": {
+                            "dim": "[Commerce].[Revenue]",
+                            "agg": "sum"
+                        },
+                        "panel": "values"
+                    }
+                ],
+                "count": 100
+            },
+            filtered: {
+                "datasource": "Sample ElastiCube",
+                "metadata": [
+                    {
+                        "jaql": {
+                            "dim": "[Date].[Date (Calendar)]",
+                            "datatype": "datetime",
+                            "level": "months"
+                        },
+                        "panel": "columns"
+                    },
+                    {
+                        "jaql": {
+                            "dim": "[Commerce].[Revenue]",
+                            "agg": "sum"
+                        },
+                        "panel": "values"
+                    },
+                    {
+                        "jaql": {
+                            "dim": "[Date].[Date (Calendar)]",
+                            "filter": {
+                                "from": "2024-01-01T00:00:00",
+                                "to": "2024-12-31T23:59:59"
+                            }
+                        },
+                        "panel": "filters"
+                    }
+                ],
+                "count": 1000
+            },
+            aggregated: {
+                "datasource": "Sample ElastiCube",
+                "metadata": [
+                    {
+                        "jaql": {
+                            "dim": "[Category].[Category]",
+                            "datatype": "text"
+                        },
+                        "panel": "columns"
+                    },
+                    {
+                        "jaql": {
+                            "dim": "[Commerce].[Revenue]",
+                            "agg": "sum"
+                        },
+                        "panel": "values",
+                        "format": {
+                            "mask": {
+                                "type": "number",
+                                "abbreviations": {
+                                    "t": true,
+                                    "b": true,
+                                    "m": true,
+                                    "k": true
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "jaql": {
+                            "dim": "[Commerce].[Quantity]",
+                            "agg": "sum"
+                        },
+                        "panel": "values"
+                    },
+                    {
+                        "jaql": {
+                            "formula": "[Commerce].[Revenue] / [Commerce].[Quantity]",
+                            "context": {
+                                "[Commerce].[Revenue]": {
+                                    "dim": "[Commerce].[Revenue]",
+                                    "agg": "sum"
+                                },
+                                "[Commerce].[Quantity]": {
+                                    "dim": "[Commerce].[Quantity]",
+                                    "agg": "sum"
+                                }
+                            }
+                        },
+                        "panel": "values"
+                    }
+                ],
+                "count": 50
+            },
+            complex: {
+                "datasource": "Sample ElastiCube",
+                "metadata": [
+                    {
+                        "jaql": {
+                            "dim": "[Date].[Date (Calendar)]",
+                            "datatype": "datetime",
+                            "level": "quarters"
+                        },
+                        "panel": "columns"
+                    },
+                    {
+                        "jaql": {
+                            "dim": "[Category].[Category]",
+                            "datatype": "text"
+                        },
+                        "panel": "columns"
+                    },
+                    {
+                        "jaql": {
+                            "dim": "[Commerce].[Revenue]",
+                            "agg": "sum"
+                        },
+                        "panel": "values"
+                    },
+                    {
+                        "jaql": {
+                            "formula": "([Commerce].[Revenue] - [Commerce].[Cost]) / [Commerce].[Revenue] * 100",
+                            "context": {
+                                "[Commerce].[Revenue]": {
+                                    "dim": "[Commerce].[Revenue]",
+                                    "agg": "sum"
+                                },
+                                "[Commerce].[Cost]": {
+                                    "dim": "[Commerce].[Cost]",
+                                    "agg": "sum"
+                                }
+                            }
+                        },
+                        "panel": "values",
+                        "format": {
+                            "mask": {
+                                "type": "number",
+                                "decimals": 2,
+                                "currency": false,
+                                "percentage": true
+                            }
+                        }
+                    }
+                ],
+                "count": 200
+            }
         };
         
-        if (!parsedJAQL.datasource) {
-            validation.valid = false;
-            validation.errors.push("Missing required 'datasource' field");
+        this.init();
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.updateLineNumbers();
+        this.loadSampleQuery();
+    }
+    
+    setupEventListeners() {
+        const editor = document.getElementById('queryEditor');
+        
+        editor.addEventListener('input', () => {
+            this.updateLineNumbers();
+            this.updateStatus();
+        });
+        
+        editor.addEventListener('keydown', (e) => {
+            this.handleKeyboard(e);
+        });
+        
+        editor.addEventListener('scroll', () => {
+            this.syncLineNumbers();
+        });
+        
+        editor.addEventListener('click', () => {
+            this.updateCursorPosition();
+        });
+    }
+    
+    loadSampleQuery() {
+        const editor = document.getElementById('queryEditor');
+        editor.value = JSON.stringify(this.examples.simple, null, 2);
+        
+        this.updateLineNumbers();
+        this.updateStatus();
+    }
+    
+    handleKeyboard(e) {
+        // Ctrl+Enter: Execute query
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            this.executeQuery();
         }
         
-        if (!parsedJAQL.metadata || !Array.isArray(parsedJAQL.metadata)) {
-            validation.valid = false;
-            validation.errors.push("Missing or invalid 'metadata' field");
+        // Ctrl+/: Toggle comment
+        if (e.ctrlKey && e.key === '/') {
+            e.preventDefault();
+            this.toggleComment();
         }
         
-        if (parsedJAQL.metadata && parsedJAQL.metadata.length === 0) {
-            validation.warnings.push("Metadata array is empty");
+        // Ctrl+Space: Format JSON
+        if (e.ctrlKey && e.key === ' ') {
+            e.preventDefault();
+            this.formatJSON();
         }
         
-        let html = '';
-        if (validation.valid) {
-            html = '<div class="alert alert-success">✓ JAQL query structure is valid</div>';
+        // Tab: Insert spaces instead
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            this.insertTab();
+        }
+    }
+    
+    updateLineNumbers() {
+        const editor = document.getElementById('queryEditor');
+        const lineNumbers = document.getElementById('lineNumbers');
+        const lines = editor.value.split('\n').length;
+        
+        lineNumbers.innerHTML = Array.from({length: lines}, (_, i) => i + 1).join('\n');
+    }
+    
+    syncLineNumbers() {
+        const editor = document.getElementById('queryEditor');
+        const lineNumbers = document.getElementById('lineNumbers');
+        lineNumbers.scrollTop = editor.scrollTop;
+    }
+    
+    updateStatus() {
+        const editor = document.getElementById('queryEditor');
+        document.getElementById('queryLength').textContent = `${editor.value.length} characters`;
+        this.updateCursorPosition();
+    }
+    
+    updateCursorPosition() {
+        const editor = document.getElementById('queryEditor');
+        const text = editor.value.substring(0, editor.selectionStart);
+        const lines = text.split('\n');
+        const line = lines.length;
+        const col = lines[lines.length - 1].length + 1;
+        
+        document.getElementById('cursorPosition').textContent = `Line ${line}, Col ${col}`;
+    }
+    
+    formatJSON() {
+        const editor = document.getElementById('queryEditor');
+        try {
+            const parsed = JSON.parse(editor.value);
+            editor.value = JSON.stringify(parsed, null, 2);
+            this.updateLineNumbers();
+            this.updateStatus();
+            SisenseUI.showNotification('JSON formatted successfully', 'success');
+        } catch (e) {
+            SisenseUI.showNotification('Invalid JSON: ' + e.message, 'error');
+        }
+    }
+    
+    async executeQuery() {
+        const editor = document.getElementById('queryEditor');
+        const query = editor.value.trim();
+        const datasource = document.getElementById('datasource').value;
+        
+        if (!query) {
+            SisenseUI.showNotification('Please enter a JAQL query first', 'warning');
+            return;
+        }
+        
+        if (!datasource) {
+            SisenseUI.showNotification('Please enter a data source', 'warning');
+            return;
+        }
+        
+        // Validate JSON
+        let parsedQuery;
+        try {
+            parsedQuery = JSON.parse(query);
+        } catch (e) {
+            SisenseUI.showNotification('Invalid JSON format: ' + e.message, 'error');
+            return;
+        }
+        
+        const startTime = performance.now();
+        
+        try {
+            this.showResults('Executing JAQL query...', true);
+            
+            const response = await fetch(`/api/datasources/${encodeURIComponent(datasource)}/jaql`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    jaql: parsedQuery,
+                    format: document.getElementById('format').value || 'json',
+                    timeout: parseInt(document.getElementById('timeout').value) || 30
+                })
+            });
+            
+            const data = await response.json();
+            const executionTime = Math.round(performance.now() - startTime);
+            
+            if (response.ok) {
+                this.showResults(JSON.stringify(data, null, 2), false);
+                this.updatePerformanceMetrics(executionTime, data);
+                SisenseUI.showNotification('JAQL query executed successfully', 'success');
+            } else {
+                this.showResults(`Error: ${data.message || 'Query failed'}`, false);
+                SisenseUI.showNotification(`Query failed: ${data.message}`, 'error');
+            }
+            
+        } catch (error) {
+            this.showResults(`Error: ${error.message}`, false);
+            SisenseUI.showNotification(`Connection error: ${error.message}`, 'error');
+        }
+    }
+    
+    showResults(content, loading = false) {
+        const preview = document.getElementById('resultsPreview');
+        const resultsContent = document.getElementById('resultsContent');
+        
+        preview.style.display = 'block';
+        resultsContent.textContent = content;
+        
+        if (loading) {
+            resultsContent.style.opacity = '0.5';
         } else {
-            html = '<div class="alert alert-danger">✗ JAQL query validation failed</div>';
-            if (validation.errors.length > 0) {
-                html += '<ul>';
-                validation.errors.forEach(error => {
-                    html += `<li class="text-danger">${escapeHtml(error)}</li>`;
-                });
-                html += '</ul>';
+            resultsContent.style.opacity = '1';
+        }
+    }
+    
+    updatePerformanceMetrics(executionTime, results) {
+        document.getElementById('executionTime').textContent = `${executionTime}ms`;
+        
+        const rowCount = results.data ? results.data.length : 0;
+        document.getElementById('rowCount').textContent = rowCount;
+        
+        const dataSize = JSON.stringify(results).length;
+        const sizeKB = Math.round(dataSize / 1024 * 100) / 100;
+        document.getElementById('dataSize').textContent = `${sizeKB}KB`;
+    }
+    
+    insertTab() {
+        const editor = document.getElementById('queryEditor');
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        
+        editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 2;
+    }
+    
+    toggleComment() {
+        const editor = document.getElementById('queryEditor');
+        const start = editor.selectionStart;
+        const text = editor.value;
+        
+        // Find line boundaries
+        let lineStart = text.lastIndexOf('\n', start - 1) + 1;
+        let lineEnd = text.indexOf('\n', start);
+        if (lineEnd === -1) lineEnd = text.length;
+        
+        const line = text.substring(lineStart, lineEnd);
+        
+        let newLine;
+        if (line.trim().startsWith('//')) {
+            newLine = line.replace(/^(\s*)\/\/\s?/, '$1');
+        } else {
+            newLine = line.replace(/^(\s*)/, '$1// ');
+        }
+        
+        editor.value = text.substring(0, lineStart) + newLine + text.substring(lineEnd);
+        this.updateLineNumbers();
+    }
+}
+
+// Global functions
+function loadJaqlExample(type) {
+    const editor = document.getElementById('queryEditor');
+    const example = window.jaqlEditor.examples[type];
+    editor.value = JSON.stringify(example, null, 2);
+    window.jaqlEditor.updateLineNumbers();
+    window.jaqlEditor.updateStatus();
+    SisenseUI.showNotification(`Loaded ${type} JAQL example`, 'info');
+}
+
+function formatQuery() {
+    window.jaqlEditor.formatJSON();
+}
+
+function validateQuery() {
+    const editor = document.getElementById('queryEditor');
+    const query = editor.value.trim();
+    
+    if (!query) {
+        SisenseUI.showNotification('Please enter a query to validate', 'warning');
+        return;
+    }
+    
+    try {
+        const parsed = JSON.parse(query);
+        
+        // Basic JAQL validation
+        if (!parsed.datasource) {
+            SisenseUI.showNotification('JAQL must include a datasource field', 'error');
+            return;
+        }
+        
+        if (!parsed.metadata || !Array.isArray(parsed.metadata)) {
+            SisenseUI.showNotification('JAQL must include a metadata array', 'error');
+            return;
+        }
+        
+        if (parsed.metadata.length === 0) {
+            SisenseUI.showNotification('JAQL metadata array cannot be empty', 'warning');
+            return;
+        }
+        
+        // Check for required jaql field in metadata items
+        let hasValidMetadata = false;
+        for (let item of parsed.metadata) {
+            if (item.jaql) {
+                hasValidMetadata = true;
+                break;
             }
         }
         
-        if (validation.warnings.length > 0) {
-            html += '<div class="alert alert-warning"><strong>Warnings:</strong>';
-            html += '<ul>';
-            validation.warnings.forEach(warning => {
-                html += `<li>${escapeHtml(warning)}</li>`;
-            });
-            html += '</ul></div>';
+        if (!hasValidMetadata) {
+            SisenseUI.showNotification('At least one metadata item must have a jaql field', 'error');
+            return;
         }
         
-        contentDiv.innerHTML = html;
-    } catch (error) {
-        contentDiv.innerHTML = `<div class="alert alert-danger">Invalid JSON: ${error.message}</div>`;
-        validationDiv.style.display = 'block';
+        SisenseUI.showNotification('JAQL validation passed', 'success');
+        
+    } catch (e) {
+        SisenseUI.showNotification('Invalid JSON: ' + e.message, 'error');
     }
 }
 
-function formatJAQL() {
-    const textarea = document.getElementById('jaql-query');
-    const jaqlQuery = textarea.value;
+function toggleLineNumbers() {
+    const editor = document.getElementById('queryEditor');
+    const lineNumbers = document.getElementById('lineNumbers');
     
-    if (!jaqlQuery) {
-        window.sisenseUI.showAlert('Please provide a JAQL query to format', 'warning');
-        return;
-    }
-    
-    try {
-        const parsedJAQL = JSON.parse(jaqlQuery);
-        textarea.value = JSON.stringify(parsedJAQL, null, 2);
-        window.sisenseUI.showAlert('JAQL query formatted successfully', 'success');
-    } catch (error) {
-        window.sisenseUI.showAlert('Invalid JSON: ' + error.message, 'danger');
+    if (editor.classList.contains('with-line-numbers')) {
+        editor.classList.remove('with-line-numbers');
+        lineNumbers.style.display = 'none';
+        editor.style.paddingLeft = '1rem';
+    } else {
+        editor.classList.add('with-line-numbers');
+        lineNumbers.style.display = 'block';
+        editor.style.paddingLeft = '60px';
     }
 }
 
-function clearJAQL() {
-    document.getElementById('jaql-query').value = '';
-    document.getElementById('jaql-datasource').value = '';
-    document.getElementById('jaql-format').value = 'json';
-    document.getElementById('jaql-timeout').value = '';
-    document.getElementById('jaql-results').innerHTML = '<div class="alert alert-info">Execute a JAQL query to see results here.</div>';
-    document.getElementById('jaql-result-actions').style.display = 'none';
-    document.getElementById('jaql-validation-results').style.display = 'none';
-    document.getElementById('metadata-results').style.display = 'none';
-    currentJAQLResults = null;
-}
-
-function loadSampleJAQL() {
-    document.getElementById('sample-jaql-modal').style.display = 'block';
-}
-
-function closeSampleJAQLModal() {
-    document.getElementById('sample-jaql-modal').style.display = 'none';
-}
-
-function useSampleJAQL(element) {
-    const code = element.querySelector('code').textContent;
-    document.getElementById('jaql-query').value = code;
-    closeSampleJAQLModal();
-}
-
-function exportJAQLResults(format) {
-    if (!currentJAQLResults) {
-        window.sisenseUI.showAlert('No results to export', 'warning');
-        return;
+function toggleFullscreen() {
+    const editor = document.querySelector('.query-editor');
+    
+    if (editor.classList.contains('fullscreen')) {
+        editor.classList.remove('fullscreen');
+        editor.style.position = 'static';
+        editor.style.zIndex = 'auto';
+        editor.style.top = 'auto';
+        editor.style.left = 'auto';
+        editor.style.width = 'auto';
+        editor.style.height = 'auto';
+    } else {
+        editor.classList.add('fullscreen');
+        editor.style.position = 'fixed';
+        editor.style.zIndex = '9999';
+        editor.style.top = '0';
+        editor.style.left = '0';
+        editor.style.width = '100vw';
+        editor.style.height = '100vh';
     }
-    
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    const filename = `sisense_jaql_results_${timestamp}.${format}`;
-    
-    downloadJSON(currentJAQLResults, filename);
-    window.sisenseUI.showAlert(`Results exported as ${format.toUpperCase()}`, 'success');
 }
 
-function copyJAQLResults() {
-    if (!currentJAQLResults) {
-        window.sisenseUI.showAlert('No results to copy', 'warning');
-        return;
-    }
-    
-    const text = JSON.stringify(currentJAQLResults, null, 2);
-    copyToClipboard(text);
+function exportResults() {
+    SisenseUI.showNotification('Export functionality would download JAQL results in selected format', 'info');
 }
 
-// Override the displayJAQLResults function to store results
-const originalDisplayJAQLResults = window.sisenseUI.displayJAQLResults;
-window.sisenseUI.displayJAQLResults = function(data, container) {
-    currentJAQLResults = data;
-    originalDisplayJAQLResults.call(this, data, container);
-    
-    // Show export actions
-    document.getElementById('jaql-result-actions').style.display = 'block';
-};
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, (m) => map[m]);
+function closeResults() {
+    document.getElementById('resultsPreview').style.display = 'none';
 }
 
-// Initialize syntax highlighting for JSON
+// Initialize editor
 document.addEventListener('DOMContentLoaded', () => {
-    const textarea = document.getElementById('jaql-query');
-    
-    // Set default JAQL template
-    textarea.value = `{
-  "datasource": "your_datasource",
-  "metadata": [
-    {
-      "jaql": {
-        "dim": "[Table].[Column]",
-        "datatype": "text"
-      },
-      "panel": "columns"
-    }
-  ]
-}`;
-});
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'Enter') {
-        e.preventDefault();
-        document.getElementById('jaql-form').dispatchEvent(new Event('submit'));
-    }
+    window.jaqlEditor = new JAQLQueryEditor();
 });
 </script>
-
-<style>
-.sample-jaql {
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.sample-jaql:hover {
-    background: #f8f9fa;
-    border-color: #667eea;
-}
-
-.sample-jaql h4 {
-    margin: 0 0 0.5rem 0;
-    color: #495057;
-}
-
-.sample-jaql code {
-    background: #f8f9fa;
-    padding: 0.5rem;
-    border-radius: 4px;
-    display: block;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-    color: #495057;
-    white-space: pre-wrap;
-}
-
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.modal-content {
-    background: white;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 900px;
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
-.modal-header {
-    padding: 1rem;
-    border-bottom: 1px solid #e9ecef;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-body {
-    padding: 1rem;
-}
-
-.btn-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-}
-
-.btn-close:hover {
-    background: #f8f9fa;
-}
-
-#jaql-query {
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
-}
-</style>
 {% endblock %}

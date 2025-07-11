@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}SQL Query - Sisense Flask Integration{% endblock %}
+{% block title %}Advanced Query Editor{% endblock %}
 
 {% block head %}
 <style>
@@ -21,6 +21,27 @@
         align-items: center;
         gap: 1rem;
         font-size: 0.875rem;
+    }
+    
+    .editor-tabs {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .editor-tab {
+        padding: 0.25rem 0.75rem;
+        background: #3c3c3c;
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #ccc;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .editor-tab.active {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
     }
     
     .editor-actions {
@@ -111,6 +132,42 @@
         color: #667eea;
     }
     
+    .autocomplete-popup {
+        position: absolute;
+        background: #2d2d2d;
+        border: 1px solid #555;
+        border-radius: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    .autocomplete-item {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        color: #d4d4d4;
+        border-bottom: 1px solid #3c3c3c;
+    }
+    
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+        background: #667eea;
+        color: white;
+    }
+    
+    .autocomplete-item .keyword {
+        color: #569cd6;
+        font-weight: bold;
+    }
+    
+    .autocomplete-item .type {
+        color: #4ec9b0;
+        font-size: 0.8em;
+        margin-left: 0.5rem;
+    }
+    
     .query-results-preview {
         background: #1e1e1e;
         border-radius: 8px;
@@ -177,37 +234,15 @@
 {% endblock %}
 
 {% block content %}
-<div class="fade-in">
-    <div class="card">
-        <h2>SQL Query Interface</h2>
-        <p>Execute SQL queries directly against your Sisense data sources with advanced syntax highlighting and autocomplete.</p>
-        
-        <form id="sql-form">
-            <div class="form-group">
-                <label for="datasource">Data Source:</label>
-                <input type="text" id="datasource" name="datasource" class="form-control" 
-                       placeholder="Enter data source name or OID" required value="default">
-            </div>
-            
-            <div class="grid">
-                <div class="form-group">
-                    <label for="limit">Row Limit:</label>
-                    <input type="number" id="limit" name="limit" class="form-control" 
-                           placeholder="1000" min="1" max="10000" value="100">
-                </div>
-                <div class="form-group">
-                    <label for="timeout">Timeout (seconds):</label>
-                    <input type="number" id="timeout" name="timeout" class="form-control" 
-                           placeholder="30" min="5" max="300" value="30">
-                </div>
-            </div>
-        </form>
-    </div>
-
+<div class="container">
+    <h1>Advanced Query Editor</h1>
+    <p>Write and execute SQL or JAQL queries with syntax highlighting and autocomplete.</p>
+    
     <div class="query-editor">
         <div class="editor-toolbar">
-            <div class="editor-info">
-                <strong>SQL Query Editor</strong>
+            <div class="editor-tabs">
+                <div class="editor-tab active" data-lang="sql">SQL</div>
+                <div class="editor-tab" data-lang="jaql">JAQL</div>
             </div>
             <div class="editor-actions">
                 <button class="editor-btn" onclick="formatQuery()">Format</button>
@@ -223,16 +258,17 @@
             <textarea 
                 class="code-editor with-line-numbers" 
                 id="queryEditor"
-                placeholder="Enter your SQL query here..."
+                placeholder="Enter your SQL or JAQL query here..."
                 spellcheck="false"
             ></textarea>
+            <div class="autocomplete-popup" id="autocompletePopup"></div>
         </div>
         
         <div class="editor-footer">
             <div class="editor-status">
                 <span id="cursorPosition">Line 1, Col 1</span>
                 <span id="queryLength">0 characters</span>
-                <span>SQL Mode</span>
+                <span id="languageMode">SQL</span>
             </div>
             <div class="keyboard-shortcuts">
                 <span class="shortcut">Ctrl+Enter: Execute</span>
@@ -269,15 +305,21 @@
 </div>
 
 <script>
-class SQLQueryEditor {
+class AdvancedQueryEditor {
     constructor() {
+        this.currentLanguage = 'sql';
+        this.lineNumbersVisible = true;
+        this.autocompleteVisible = false;
         this.sqlKeywords = [
             'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING',
             'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP',
             'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'OUTER JOIN',
-            'UNION', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN',
-            'AS', 'AND', 'OR', 'NOT', 'IN', 'LIKE', 'BETWEEN', 'IS NULL',
-            'IS NOT NULL', 'EXISTS', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END'
+            'UNION', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN'
+        ];
+        this.jaqlKeywords = [
+            'datasource', 'metadata', 'jaql', 'panel', 'dim', 'agg',
+            'filter', 'equals', 'contains', 'startsWith', 'endsWith',
+            'between', 'in', 'isNull', 'isNotNull', 'count', 'sum', 'avg'
         ];
         
         this.init();
@@ -291,10 +333,20 @@ class SQLQueryEditor {
     
     setupEventListeners() {
         const editor = document.getElementById('queryEditor');
+        const tabs = document.querySelectorAll('.editor-tab');
         
+        // Tab switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.switchLanguage(tab.dataset.lang);
+            });
+        });
+        
+        // Editor events
         editor.addEventListener('input', () => {
             this.updateLineNumbers();
             this.updateStatus();
+            this.handleAutocomplete();
         });
         
         editor.addEventListener('keydown', (e) => {
@@ -307,26 +359,78 @@ class SQLQueryEditor {
         
         editor.addEventListener('click', () => {
             this.updateCursorPosition();
+            this.hideAutocomplete();
         });
+        
+        // Autocomplete events
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.autocomplete-popup')) {
+                this.hideAutocomplete();
+            }
+        });
+    }
+    
+    switchLanguage(lang) {
+        this.currentLanguage = lang;
+        
+        // Update tabs
+        document.querySelectorAll('.editor-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.lang === lang);
+        });
+        
+        // Update status
+        document.getElementById('languageMode').textContent = lang.toUpperCase();
+        
+        // Load sample query
+        this.loadSampleQuery();
     }
     
     loadSampleQuery() {
         const editor = document.getElementById('queryEditor');
-        editor.value = `-- Sample SQL Query
+        
+        if (this.currentLanguage === 'sql') {
+            editor.value = `-- Sample SQL Query
 SELECT 
     customer_id,
     customer_name,
     COUNT(*) as order_count,
-    SUM(total_amount) as total_spent,
-    AVG(total_amount) as avg_order_value
+    SUM(total_amount) as total_spent
 FROM orders o
 JOIN customers c ON o.customer_id = c.id
 WHERE order_date >= '2024-01-01'
-  AND status = 'completed'
 GROUP BY customer_id, customer_name
-HAVING COUNT(*) > 5
 ORDER BY total_spent DESC
 LIMIT 10;`;
+        } else {
+            editor.value = `{
+  "datasource": "Sample ElastiCube",
+  "metadata": [
+    {
+      "jaql": {
+        "dim": "[Customers].[Customer Name]",
+        "datatype": "text"
+      },
+      "panel": "columns"
+    },
+    {
+      "jaql": {
+        "dim": "[Orders].[Order Date]",
+        "datatype": "datetime",
+        "level": "months"
+      },
+      "panel": "columns"
+    },
+    {
+      "jaql": {
+        "dim": "[Orders].[Revenue]",
+        "agg": "sum"
+      },
+      "panel": "values"
+    }
+  ],
+  "count": 100
+}`;
+        }
         
         this.updateLineNumbers();
         this.updateStatus();
@@ -345,10 +449,21 @@ LIMIT 10;`;
             this.toggleComment();
         }
         
+        // Ctrl+Space: Show autocomplete
+        if (e.ctrlKey && e.key === ' ') {
+            e.preventDefault();
+            this.showAutocomplete();
+        }
+        
         // Tab: Insert spaces instead
         if (e.key === 'Tab') {
             e.preventDefault();
             this.insertTab();
+        }
+        
+        // Escape: Hide autocomplete
+        if (e.key === 'Escape') {
+            this.hideAutocomplete();
         }
     }
     
@@ -382,35 +497,103 @@ LIMIT 10;`;
         document.getElementById('cursorPosition').textContent = `Line ${line}, Col ${col}`;
     }
     
-    async executeQuery() {
+    showAutocomplete() {
         const editor = document.getElementById('queryEditor');
-        const query = editor.value.trim();
-        const datasource = document.getElementById('datasource').value;
+        const popup = document.getElementById('autocompletePopup');
+        const keywords = this.currentLanguage === 'sql' ? this.sqlKeywords : this.jaqlKeywords;
         
-        if (!query) {
-            SisenseUI.showNotification('Please enter a SQL query first', 'warning');
+        // Get current word
+        const cursorPos = editor.selectionStart;
+        const text = editor.value.substring(0, cursorPos);
+        const words = text.split(/\s+/);
+        const currentWord = words[words.length - 1].toLowerCase();
+        
+        // Filter keywords
+        const filtered = keywords.filter(kw => 
+            kw.toLowerCase().startsWith(currentWord)
+        );
+        
+        if (filtered.length === 0) {
+            this.hideAutocomplete();
             return;
         }
         
-        if (!datasource) {
-            SisenseUI.showNotification('Please enter a data source', 'warning');
+        // Populate popup
+        popup.innerHTML = filtered.map(kw => 
+            `<div class="autocomplete-item">
+                <span class="keyword">${kw}</span>
+                <span class="type">${this.currentLanguage}</span>
+            </div>`
+        ).join('');
+        
+        // Position popup
+        const rect = editor.getBoundingClientRect();
+        popup.style.display = 'block';
+        popup.style.left = `${rect.left + 100}px`;
+        popup.style.top = `${rect.top + 100}px`;
+        
+        this.autocompleteVisible = true;
+        
+        // Add click handlers
+        popup.querySelectorAll('.autocomplete-item').forEach((item, index) => {
+            item.addEventListener('click', () => {
+                this.insertAutocomplete(filtered[index]);
+            });
+        });
+    }
+    
+    hideAutocomplete() {
+        document.getElementById('autocompletePopup').style.display = 'none';
+        this.autocompleteVisible = false;
+    }
+    
+    insertAutocomplete(keyword) {
+        const editor = document.getElementById('queryEditor');
+        const cursorPos = editor.selectionStart;
+        const text = editor.value;
+        const beforeCursor = text.substring(0, cursorPos);
+        const afterCursor = text.substring(cursorPos);
+        
+        // Find the start of the current word
+        const words = beforeCursor.split(/\s+/);
+        const currentWord = words[words.length - 1];
+        const wordStart = beforeCursor.lastIndexOf(currentWord);
+        
+        // Replace current word with keyword
+        const newText = text.substring(0, wordStart) + keyword + afterCursor;
+        editor.value = newText;
+        editor.selectionStart = editor.selectionEnd = wordStart + keyword.length;
+        
+        this.hideAutocomplete();
+        this.updateLineNumbers();
+        this.updateStatus();
+    }
+    
+    async executeQuery() {
+        const editor = document.getElementById('queryEditor');
+        const query = editor.value.trim();
+        
+        if (!query) {
+            alert('Please enter a query first');
             return;
         }
         
         const startTime = performance.now();
         
         try {
-            this.showResults('Executing SQL query...', true);
+            this.showResults('Executing query...', true);
             
-            const response = await fetch(`/api/datasources/${encodeURIComponent(datasource)}/sql`, {
+            const endpoint = this.currentLanguage === 'sql' ? 
+                '/api/datasources/default/sql' : 
+                '/api/datasources/default/jaql';
+            
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ 
-                    query: query,
-                    limit: parseInt(document.getElementById('limit').value) || 100,
-                    timeout: parseInt(document.getElementById('timeout').value) || 30
+                    query: this.currentLanguage === 'sql' ? query : JSON.parse(query) 
                 })
             });
             
@@ -420,15 +603,12 @@ LIMIT 10;`;
             if (response.ok) {
                 this.showResults(JSON.stringify(data, null, 2), false);
                 this.updatePerformanceMetrics(executionTime, data);
-                SisenseUI.showNotification('SQL query executed successfully', 'success');
             } else {
                 this.showResults(`Error: ${data.message || 'Query failed'}`, false);
-                SisenseUI.showNotification(`Query failed: ${data.message}`, 'error');
             }
             
         } catch (error) {
             this.showResults(`Error: ${error.message}`, false);
-            SisenseUI.showNotification(`Connection error: ${error.message}`, 'error');
         }
     }
     
@@ -477,13 +657,13 @@ LIMIT 10;`;
         if (lineEnd === -1) lineEnd = text.length;
         
         const line = text.substring(lineStart, lineEnd);
-        const commentPrefix = '-- ';
+        const commentPrefix = this.currentLanguage === 'sql' ? '-- ' : '// ';
         
         let newLine;
-        if (line.trim().startsWith('--')) {
-            newLine = line.replace(/^(\s*)--\s?/, '$1');
+        if (line.trim().startsWith(commentPrefix.trim())) {
+            newLine = line.replace(commentPrefix, '');
         } else {
-            newLine = line.replace(/^(\s*)/, `$1${commentPrefix}`);
+            newLine = commentPrefix + line;
         }
         
         editor.value = text.substring(0, lineStart) + newLine + text.substring(lineEnd);
@@ -493,35 +673,11 @@ LIMIT 10;`;
 
 // Global functions
 function formatQuery() {
-    SisenseUI.showNotification('SQL formatting would be implemented here', 'info');
+    SisenseUI.showNotification('Format functionality would integrate with SQL/JAQL formatters', 'info');
 }
 
 function validateQuery() {
-    const editor = document.getElementById('queryEditor');
-    const query = editor.value.trim();
-    
-    if (!query) {
-        SisenseUI.showNotification('Please enter a query to validate', 'warning');
-        return;
-    }
-    
-    // Basic SQL validation
-    const forbiddenKeywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER'];
-    const upperQuery = query.toUpperCase();
-    
-    for (let keyword of forbiddenKeywords) {
-        if (upperQuery.includes(keyword)) {
-            SisenseUI.showNotification(`Query contains forbidden keyword: ${keyword}`, 'error');
-            return;
-        }
-    }
-    
-    if (!upperQuery.includes('SELECT')) {
-        SisenseUI.showNotification('Query must contain SELECT statement', 'warning');
-        return;
-    }
-    
-    SisenseUI.showNotification('Query validation passed', 'success');
+    SisenseUI.showNotification('Validation functionality would check syntax', 'info');
 }
 
 function toggleLineNumbers() {
@@ -562,7 +718,7 @@ function toggleFullscreen() {
 }
 
 function exportResults() {
-    SisenseUI.showNotification('Export functionality would download SQL results as CSV/JSON', 'info');
+    SisenseUI.showNotification('Export functionality would download results', 'info');
 }
 
 function closeResults() {
@@ -571,7 +727,7 @@ function closeResults() {
 
 // Initialize editor
 document.addEventListener('DOMContentLoaded', () => {
-    window.sqlEditor = new SQLQueryEditor();
+    window.queryEditor = new AdvancedQueryEditor();
 });
 </script>
 {% endblock %}

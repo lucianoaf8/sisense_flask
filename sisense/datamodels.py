@@ -8,6 +8,7 @@ listing models, getting model details, and exporting schemas.
 import logging
 from typing import Dict, List, Optional, Any
 
+from config import Config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client, SisenseAPIError, validate_response_data
 
@@ -28,6 +29,26 @@ def list_models(model_type: Optional[str] = None) -> List[Dict[str, Any]]:
     Raises:
         SisenseAPIError: If request fails.
     """
+    # Demo mode - return sample data
+    if Config.DEMO_MODE:
+        return [
+            {
+                "oid": "demo-model-1",
+                "title": "Sample Sales Data",
+                "type": "live",
+                "description": "Demo sales data model",
+                "created": "2024-01-01T00:00:00Z",
+                "lastPublish": "2024-01-15T12:00:00Z"
+            },
+            {
+                "oid": "demo-model-2", 
+                "title": "Sample Marketing Data",
+                "type": "extract",
+                "description": "Demo marketing analytics model",
+                "created": "2024-01-02T00:00:00Z",
+                "lastPublish": "2024-01-16T10:00:00Z"
+            }
+        ]
     http_client = get_http_client()
     headers = get_auth_headers()
     
@@ -37,12 +58,32 @@ def list_models(model_type: Optional[str] = None) -> List[Dict[str, Any]]:
     
     logger.info(f"Listing data models with type filter: {model_type}")
     
+    # Try different API endpoints for data models
+    endpoints = [
+        '/api/v2/datamodels',
+        '/api/v1/elasticubes',
+        '/api/elasticubes'
+    ]
+    
+    response = None
+    last_error = None
+    
+    for endpoint in endpoints:
+        try:
+            response = http_client.get(
+                endpoint=endpoint,
+                headers=headers,
+                params=params
+            )
+            break
+        except Exception as e:
+            last_error = e
+            continue
+    
+    if response is None:
+        raise last_error or SisenseAPIError("No working data models endpoint found")
+    
     try:
-        response = http_client.get(
-            endpoint='/api/v2/datamodels',
-            headers=headers,
-            params=params
-        )
         
         # Validate response structure
         if isinstance(response, list):
