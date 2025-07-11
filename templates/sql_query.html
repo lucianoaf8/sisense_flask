@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}SQL Query - Sisense Flask Integration{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="card">
+        <h2>SQL Query Interface</h2>
+        <p>Execute SQL queries directly against your Sisense data sources. Only read-only SELECT queries are supported.</p>
+        
+        <form id="sql-form">
+            <div class="form-group">
+                <label for="datasource">Data Source:</label>
+                <input type="text" id="datasource" name="datasource" class="form-control" 
+                       placeholder="Enter data source name or OID" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="query">SQL Query:</label>
+                <textarea id="query" name="query" class="form-control" rows="6" 
+                          placeholder="SELECT * FROM your_table LIMIT 100" required></textarea>
+            </div>
+            
+            <div class="grid">
+                <div class="form-group">
+                    <label for="limit">Row Limit:</label>
+                    <input type="number" id="limit" name="limit" class="form-control" 
+                           placeholder="1000" min="1" max="10000">
+                </div>
+                <div class="form-group">
+                    <label for="timeout">Query Timeout (seconds):</label>
+                    <input type="number" id="timeout" name="timeout" class="form-control" 
+                           placeholder="30" min="1" max="300">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Execute Query</button>
+                <button type="button" class="btn btn-secondary" onclick="validateQuery()">Validate Query</button>
+                <button type="button" class="btn btn-secondary" onclick="clearQuery()">Clear</button>
+                <button type="button" class="btn btn-success" onclick="loadSampleQueries()">Sample Queries</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Query Validation Results -->
+    <div id="validation-results" style="display: none;">
+        <div class="card">
+            <h3>Query Validation</h3>
+            <div id="validation-content"></div>
+        </div>
+    </div>
+
+    <!-- Query Results -->
+    <div class="card">
+        <h3>Query Results</h3>
+        <div id="sql-results">
+            <div class="alert alert-info">Execute a query to see results here.</div>
+        </div>
+        <div id="result-actions" style="display: none;">
+            <button class="btn btn-success btn-sm" onclick="exportResults('json')">Export JSON</button>
+            <button class="btn btn-success btn-sm" onclick="exportResults('csv')">Export CSV</button>
+            <button class="btn btn-secondary btn-sm" onclick="copyResults()">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <!-- Sample Queries Modal -->
+    <div id="sample-queries-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Sample SQL Queries</h3>
+                <button class="btn-close" onclick="closeSampleModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="sample-query" onclick="useSampleQuery(this)">
+                    <h4>Basic Select</h4>
+                    <code>SELECT * FROM table_name LIMIT 10;</code>
+                </div>
+                <div class="sample-query" onclick="useSampleQuery(this)">
+                    <h4>Count Records</h4>
+                    <code>SELECT COUNT(*) as total_records FROM table_name;</code>
+                </div>
+                <div class="sample-query" onclick="useSampleQuery(this)">
+                    <h4>Group By Example</h4>
+                    <code>SELECT column_name, COUNT(*) as count FROM table_name GROUP BY column_name ORDER BY count DESC LIMIT 20;</code>
+                </div>
+                <div class="sample-query" onclick="useSampleQuery(this)">
+                    <h4>Date Range Filter</h4>
+                    <code>SELECT * FROM table_name WHERE date_column >= '2024-01-01' AND date_column < '2024-12-31' LIMIT 100;</code>
+                </div>
+                <div class="sample-query" onclick="useSampleQuery(this)">
+                    <h4>Join Example</h4>
+                    <code>SELECT a.*, b.column_name FROM table_a a JOIN table_b b ON a.id = b.foreign_id LIMIT 50;</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentResults = null;
+
+async function validateQuery() {
+    const datasource = document.getElementById('datasource').value;
+    const query = document.getElementById('query').value;
+    
+    if (!datasource || !query) {
+        window.sisenseUI.showAlert('Please provide both datasource and query', 'warning');
+        return;
+    }
+    
+    const validationDiv = document.getElementById('validation-results');
+    const contentDiv = document.getElementById('validation-content');
+    
+    try {
+        contentDiv.innerHTML = '<div class="spinner"></div>';
+        validationDiv.style.display = 'block';
+        
+        const response = await fetch(`/api/datasources/${datasource}/sql/validate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: query })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            let html = '';
+            if (data.valid) {
+                html = '<div class="alert alert-success">✓ Query is valid and ready to execute</div>';
+                if (data.is_read_only) {
+                    html += '<div class="alert alert-info">✓ Query is read-only (SELECT only)</div>';
+                }
+            } else {
+                html = '<div class="alert alert-danger">✗ Query validation failed</div>';
+                if (data.errors && data.errors.length > 0) {
+                    html += '<ul>';
+                    data.errors.forEach(error => {
+                        html += `<li class="text-danger">${escapeHtml(error)}</li>`;
+                    });
+                    html += '</ul>';
+                }
+            }
+            
+            if (data.warnings && data.warnings.length > 0) {
+                html += '<div class="alert alert-warning"><strong>Warnings:</strong>';
+                html += '<ul>';
+                data.warnings.forEach(warning => {
+                    html += `<li>${escapeHtml(warning)}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            contentDiv.innerHTML = html;
+        } else {
+            contentDiv.innerHTML = `<div class="alert alert-danger">Validation failed: ${data.message}</div>`;
+        }
+    } catch (error) {
+        contentDiv.innerHTML = `<div class="alert alert-danger">Validation error: ${error.message}</div>`;
+    }
+}
+
+function clearQuery() {
+    document.getElementById('query').value = '';
+    document.getElementById('datasource').value = '';
+    document.getElementById('limit').value = '';
+    document.getElementById('timeout').value = '';
+    document.getElementById('sql-results').innerHTML = '<div class="alert alert-info">Execute a query to see results here.</div>';
+    document.getElementById('result-actions').style.display = 'none';
+    document.getElementById('validation-results').style.display = 'none';
+    currentResults = null;
+}
+
+function loadSampleQueries() {
+    document.getElementById('sample-queries-modal').style.display = 'block';
+}
+
+function closeSampleModal() {
+    document.getElementById('sample-queries-modal').style.display = 'none';
+}
+
+function useSampleQuery(element) {
+    const code = element.querySelector('code').textContent;
+    document.getElementById('query').value = code;
+    closeSampleModal();
+}
+
+function exportResults(format) {
+    if (!currentResults) {
+        window.sisenseUI.showAlert('No results to export', 'warning');
+        return;
+    }
+    
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const filename = `sisense_query_results_${timestamp}.${format}`;
+    
+    if (format === 'json') {
+        downloadJSON(currentResults, filename);
+    } else if (format === 'csv') {
+        downloadCSV(currentResults.data, filename);
+    }
+    
+    window.sisenseUI.showAlert(`Results exported as ${format.toUpperCase()}`, 'success');
+}
+
+function copyResults() {
+    if (!currentResults) {
+        window.sisenseUI.showAlert('No results to copy', 'warning');
+        return;
+    }
+    
+    const text = JSON.stringify(currentResults, null, 2);
+    copyToClipboard(text);
+}
+
+// Override the displaySQLResults function to store results
+const originalDisplaySQLResults = window.sisenseUI.displaySQLResults;
+window.sisenseUI.displaySQLResults = function(data, container) {
+    currentResults = data;
+    originalDisplaySQLResults.call(this, data, container);
+    
+    // Show export actions
+    document.getElementById('result-actions').style.display = 'block';
+};
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('sql-form').dispatchEvent(new Event('submit'));
+    }
+});
+
+// Add query examples to textarea placeholder on focus
+document.getElementById('query').addEventListener('focus', function() {
+    if (!this.value) {
+        this.placeholder = `Examples:
+SELECT * FROM your_table LIMIT 10;
+SELECT COUNT(*) FROM your_table;
+SELECT column1, column2 FROM your_table WHERE condition = 'value';`;
+    }
+});
+
+document.getElementById('query').addEventListener('blur', function() {
+    this.placeholder = "SELECT * FROM your_table LIMIT 100";
+});
+</script>
+
+<style>
+.sample-query {
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.sample-query:hover {
+    background: #f8f9fa;
+    border-color: #667eea;
+}
+
+.sample-query h4 {
+    margin: 0 0 0.5rem 0;
+    color: #495057;
+}
+
+.sample-query code {
+    background: #f8f9fa;
+    padding: 0.5rem;
+    border-radius: 4px;
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1rem;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.btn-close:hover {
+    background: #f8f9fa;
+}
+</style>
+{% endblock %}

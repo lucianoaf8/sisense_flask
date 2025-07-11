@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+
+{% block title %}Connections - Sisense Flask Integration{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="card">
+        <h2>Data Source Connections</h2>
+        <p>Manage and monitor your Sisense data source connections.</p>
+        
+        <!-- Filter Section -->
+        <div class="grid">
+            <div class="form-group">
+                <label for="connection-type-filter">Filter by Type:</label>
+                <select id="connection-type-filter" class="form-control">
+                    <option value="">All Types</option>
+                    <option value="mysql">MySQL</option>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mssql">SQL Server</option>
+                    <option value="oracle">Oracle</option>
+                    <option value="snowflake">Snowflake</option>
+                    <option value="redshift">Redshift</option>
+                    <option value="bigquery">BigQuery</option>
+                    <option value="mongodb">MongoDB</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="connection-search">Search Connections:</label>
+                <input type="text" id="connection-search" class="form-control" placeholder="Search by name or description...">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <button class="btn btn-primary" onclick="loadConnections()">
+                Refresh Connections
+            </button>
+            <button class="btn btn-secondary" onclick="loadConnectionTypes()">
+                Load Connection Types
+            </button>
+            <button class="btn btn-success" onclick="testAllConnections()">
+                Test All Connections
+            </button>
+        </div>
+    </div>
+
+    <!-- Connection Types -->
+    <div id="connection-types" style="display: none;">
+        <div class="card">
+            <h3>Available Connection Types</h3>
+            <div id="connection-types-list"></div>
+        </div>
+    </div>
+
+    <!-- Connections List -->
+    <div class="card">
+        <h2>All Connections</h2>
+        <div id="connections-list">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- Connection Details Modal -->
+    <div id="connection-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-connection-title">Connection Details</h3>
+                <button class="btn-close" onclick="closeConnectionModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="connection-details"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadConnections() {
+    const container = document.getElementById('connections-list');
+    const typeFilter = document.getElementById('connection-type-filter').value;
+    
+    try {
+        container.innerHTML = '<div class="spinner"></div>';
+        
+        const url = typeFilter ? `/api/connections?type=${encodeURIComponent(typeFilter)}` : '/api/connections';
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayConnectionsList(data.data, container);
+        } else {
+            container.innerHTML = `<div class="alert alert-danger">Failed to load connections: ${data.message}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">Error loading connections: ${error.message}</div>`;
+    }
+}
+
+function displayConnectionsList(connections, container) {
+    if (!connections || connections.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No connections found</div>';
+        return;
+    }
+
+    let html = '<div class="table-container"><table class="table"><thead><tr>';
+    html += '<th>Name</th><th>Type</th><th>Host</th><th>Status</th><th>Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    connections.forEach(connection => {
+        html += `<tr>
+            <td><strong>${escapeHtml(connection.name || connection.id)}</strong></td>
+            <td><span class="badge badge-info">${connection.type || 'Unknown'}</span></td>
+            <td>${escapeHtml(connection.host || 'N/A')}</td>
+            <td>
+                <span class="badge badge-warning" id="status-${connection.id}">Unknown</span>
+            </td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="viewConnectionDetails('${connection.id}')">
+                    View Details
+                </button>
+                <button class="btn btn-success btn-sm" onclick="testConnection('${connection.id}')">
+                    Test Connection
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="getConnectionSchema('${connection.id}')">
+                    Schema
+                </button>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+async function testConnection(connectionId) {
+    const statusElement = document.getElementById(`status-${connectionId}`);
+    const originalText = statusElement.textContent;
+    
+    try {
+        statusElement.textContent = 'Testing...';
+        statusElement.className = 'badge badge-warning';
+        
+        const response = await fetch(`/api/connections/${connectionId}/test`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (data.status === 'success') {
+                statusElement.textContent = 'Online';
+                statusElement.className = 'badge badge-success';
+                window.sisenseUI.showAlert(`Connection ${connectionId} is working`, 'success');
+            } else {
+                statusElement.textContent = 'Failed';
+                statusElement.className = 'badge badge-danger';
+                window.sisenseUI.showAlert(`Connection ${connectionId} test failed`, 'danger');
+            }
+        } else {
+            statusElement.textContent = 'Error';
+            statusElement.className = 'badge badge-danger';
+            window.sisenseUI.showAlert(`Connection test failed: ${data.message}`, 'danger');
+        }
+    } catch (error) {
+        statusElement.textContent = 'Error';
+        statusElement.className = 'badge badge-danger';
+        window.sisenseUI.showAlert(`Connection test error: ${error.message}`, 'danger');
+    }
+}
+
+async function testAllConnections() {
+    const connections = document.querySelectorAll('[id^="status-"]');
+    const promises = [];
+    
+    connections.forEach(statusElement => {
+        const connectionId = statusElement.id.replace('status-', '');
+        promises.push(testConnection(connectionId));
+    });
+    
+    try {
+        await Promise.all(promises);
+        window.sisenseUI.showAlert('All connection tests completed', 'info');
+    } catch (error) {
+        window.sisenseUI.showAlert('Some connection tests failed', 'warning');
+    }
+}
+
+async function viewConnectionDetails(connectionId) {
+    const modal = document.getElementById('connection-modal');
+    const title = document.getElementById('modal-connection-title');
+    const content = document.getElementById('connection-details');
+    
+    try {
+        content.innerHTML = '<div class="spinner"></div>';
+        modal.style.display = 'block';
+        
+        const response = await fetch(`/api/connections/${connectionId}`);
+        const connection = await response.json();
+        
+        if (response.ok) {
+            title.textContent = connection.name || connection.id;
+            
+            let html = `
+                <div class="form-group">
+                    <label>Connection ID:</label>
+                    <input type="text" class="form-control" value="${connection.id}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Name:</label>
+                    <input type="text" class="form-control" value="${connection.name || 'N/A'}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Type:</label>
+                    <input type="text" class="form-control" value="${connection.type || 'Unknown'}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Host:</label>
+                    <input type="text" class="form-control" value="${connection.host || 'N/A'}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Port:</label>
+                    <input type="text" class="form-control" value="${connection.port || 'N/A'}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Database:</label>
+                    <input type="text" class="form-control" value="${connection.database || 'N/A'}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Description:</label>
+                    <textarea class="form-control" rows="3" readonly>${connection.description || 'No description'}</textarea>
+                </div>
+            `;
+            
+            if (connection.created) {
+                html += `
+                    <div class="form-group">
+                        <label>Created:</label>
+                        <input type="text" class="form-control" value="${formatDateTime(connection.created)}" readonly>
+                    </div>
+                `;
+            }
+            
+            if (connection.lastModified) {
+                html += `
+                    <div class="form-group">
+                        <label>Last Modified:</label>
+                        <input type="text" class="form-control" value="${formatDateTime(connection.lastModified)}" readonly>
+                    </div>
+                `;
+            }
+            
+            content.innerHTML = html;
+        } else {
+            content.innerHTML = `<div class="alert alert-danger">Failed to load connection details: ${connection.message}</div>`;
+        }
+    } catch (error) {
+        content.innerHTML = `<div class="alert alert-danger">Error loading connection details: ${error.message}</div>`;
+    }
+}
+
+async function getConnectionSchema(connectionId) {
+    const modal = document.getElementById('connection-modal');
+    const title = document.getElementById('modal-connection-title');
+    const content = document.getElementById('connection-details');
+    
+    try {
+        content.innerHTML = '<div class="spinner"></div>';
+        modal.style.display = 'block';
+        title.textContent = 'Connection Schema';
+        
+        const response = await fetch(`/api/connections/${connectionId}/schema`);
+        const schema = await response.json();
+        
+        if (response.ok) {
+            let html = '<div class="table-container"><table class="table"><thead><tr>';
+            html += '<th>Table Name</th><th>Columns</th><th>Actions</th></tr></thead><tbody>';
+            
+            if (schema.tables && schema.tables.length > 0) {
+                schema.tables.forEach(table => {
+                    html += `<tr>
+                        <td><strong>${escapeHtml(table.name)}</strong></td>
+                        <td>${table.columns ? table.columns.length : 0}</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="viewTableSchema('${connectionId}', '${table.name}')">
+                                View Columns
+                            </button>
+                        </td>
+                    </tr>`;
+                });
+            } else {
+                html += '<tr><td colspan="3" class="text-center">No tables found</td></tr>';
+            }
+            
+            html += '</tbody></table></div>';
+            content.innerHTML = html;
+        } else {
+            content.innerHTML = `<div class="alert alert-danger">Failed to load schema: ${schema.message}</div>`;
+        }
+    } catch (error) {
+        content.innerHTML = `<div class="alert alert-danger">Error loading schema: ${error.message}</div>`;
+    }
+}
+
+async function viewTableSchema(connectionId, tableName) {
+    const content = document.getElementById('connection-details');
+    
+    try {
+        content.innerHTML = '<div class="spinner"></div>';
+        
+        // This would need to be implemented in the backend
+        // For now, show a placeholder
+        let html = `
+            <h4>Table: ${escapeHtml(tableName)}</h4>
+            <div class="alert alert-info">
+                Table schema details would be displayed here. This requires additional backend implementation.
+            </div>
+            <button class="btn btn-secondary" onclick="getConnectionSchema('${connectionId}')">
+                Back to Schema
+            </button>
+        `;
+        
+        content.innerHTML = html;
+    } catch (error) {
+        content.innerHTML = `<div class="alert alert-danger">Error loading table schema: ${error.message}</div>`;
+    }
+}
+
+async function loadConnectionTypes() {
+    const container = document.getElementById('connection-types-list');
+    const section = document.getElementById('connection-types');
+    
+    try {
+        container.innerHTML = '<div class="spinner"></div>';
+        section.style.display = 'block';
+        
+        // This would need to be implemented in the backend
+        // For now, show placeholder data
+        const types = [
+            { type: 'mysql', name: 'MySQL', description: 'MySQL database connections' },
+            { type: 'postgresql', name: 'PostgreSQL', description: 'PostgreSQL database connections' },
+            { type: 'mssql', name: 'SQL Server', description: 'Microsoft SQL Server connections' },
+            { type: 'oracle', name: 'Oracle', description: 'Oracle database connections' },
+            { type: 'snowflake', name: 'Snowflake', description: 'Snowflake cloud data platform' },
+            { type: 'redshift', name: 'Amazon Redshift', description: 'Amazon Redshift data warehouse' },
+            { type: 'bigquery', name: 'Google BigQuery', description: 'Google BigQuery analytics platform' },
+            { type: 'mongodb', name: 'MongoDB', description: 'MongoDB NoSQL database' }
+        ];
+        
+        let html = '<div class="grid">';
+        types.forEach(type => {
+            html += `
+                <div class="card">
+                    <h4>${escapeHtml(type.name)}</h4>
+                    <p>${escapeHtml(type.description)}</p>
+                    <div class="mt-2">
+                        <span class="badge badge-info">${type.type}</span>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">Error loading connection types: ${error.message}</div>`;
+    }
+}
+
+function closeConnectionModal() {
+    document.getElementById('connection-modal').style.display = 'none';
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    loadConnections();
+    
+    // Setup type filter
+    document.getElementById('connection-type-filter').addEventListener('change', loadConnections);
+    
+    // Setup search
+    let searchTimeout;
+    document.getElementById('connection-search').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            const searchTerm = e.target.value.trim();
+            if (searchTerm.length >= 2) {
+                searchConnections(searchTerm);
+            } else if (searchTerm.length === 0) {
+                loadConnections();
+            }
+        }, 300);
+    });
+});
+
+async function searchConnections(searchTerm) {
+    const container = document.getElementById('connections-list');
+    
+    try {
+        container.innerHTML = '<div class="spinner"></div>';
+        
+        const response = await fetch(`/api/search/connections?q=${encodeURIComponent(searchTerm)}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayConnectionsList(data.data, container);
+        } else {
+            container.innerHTML = `<div class="alert alert-danger">Search failed: ${data.message}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">Search error: ${error.message}</div>`;
+    }
+}
+</script>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1rem;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.btn-close:hover {
+    background: #f8f9fa;
+}
+
+.card h4 {
+    margin-top: 0;
+}
+</style>
+{% endblock %}

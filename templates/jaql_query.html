@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+
+{% block title %}JAQL Query - Sisense Flask Integration{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="card">
+        <h2>JAQL Query Interface</h2>
+        <p>Execute JAQL queries against your Sisense data sources. JAQL is Sisense's proprietary query language.</p>
+        
+        <form id="jaql-form">
+            <div class="form-group">
+                <label for="jaql-datasource">Data Source:</label>
+                <input type="text" id="jaql-datasource" name="datasource" class="form-control" 
+                       placeholder="Enter data source name or OID" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="jaql-query">JAQL Query (JSON):</label>
+                <textarea id="jaql-query" name="jaql" class="form-control" rows="12" 
+                          placeholder='{"datasource": "your_datasource", "metadata": []}' required></textarea>
+            </div>
+            
+            <div class="grid">
+                <div class="form-group">
+                    <label for="jaql-format">Response Format:</label>
+                    <select id="jaql-format" name="format" class="form-control">
+                        <option value="json">JSON</option>
+                        <option value="csv">CSV</option>
+                        <option value="excel">Excel</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="jaql-timeout">Query Timeout (seconds):</label>
+                    <input type="number" id="jaql-timeout" name="timeout" class="form-control" 
+                           placeholder="30" min="1" max="300">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Execute JAQL</button>
+                <button type="button" class="btn btn-secondary" onclick="validateJAQL()">Validate JAQL</button>
+                <button type="button" class="btn btn-secondary" onclick="formatJAQL()">Format JSON</button>
+                <button type="button" class="btn btn-secondary" onclick="clearJAQL()">Clear</button>
+                <button type="button" class="btn btn-success" onclick="loadSampleJAQL()">Sample JAQL</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- JAQL Builder Tool -->
+    <div class="card">
+        <h3>JAQL Builder</h3>
+        <p>Build JAQL queries using a simple interface</p>
+        
+        <div class="grid">
+            <div class="form-group">
+                <label for="builder-datasource">Data Source:</label>
+                <input type="text" id="builder-datasource" class="form-control" 
+                       placeholder="Enter data source name">
+            </div>
+            <div class="form-group">
+                <label for="builder-table">Table:</label>
+                <input type="text" id="builder-table" class="form-control" 
+                       placeholder="Enter table name">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="builder-columns">Columns (comma-separated):</label>
+            <input type="text" id="builder-columns" class="form-control" 
+                   placeholder="column1, column2, column3">
+        </div>
+        
+        <div class="form-group">
+            <label for="builder-limit">Row Limit:</label>
+            <input type="number" id="builder-limit" class="form-control" 
+                   placeholder="1000" min="1" max="10000">
+        </div>
+        
+        <div class="form-group">
+            <button class="btn btn-primary" onclick="buildJAQL()">Build JAQL Query</button>
+            <button class="btn btn-secondary" onclick="getDataSourceMetadata()">Get Metadata</button>
+        </div>
+    </div>
+
+    <!-- Metadata Results -->
+    <div id="metadata-results" style="display: none;">
+        <div class="card">
+            <h3>Data Source Metadata</h3>
+            <div id="metadata-content"></div>
+        </div>
+    </div>
+
+    <!-- JAQL Validation Results -->
+    <div id="jaql-validation-results" style="display: none;">
+        <div class="card">
+            <h3>JAQL Validation</h3>
+            <div id="jaql-validation-content"></div>
+        </div>
+    </div>
+
+    <!-- JAQL Results -->
+    <div class="card">
+        <h3>JAQL Results</h3>
+        <div id="jaql-results">
+            <div class="alert alert-info">Execute a JAQL query to see results here.</div>
+        </div>
+        <div id="jaql-result-actions" style="display: none;">
+            <button class="btn btn-success btn-sm" onclick="exportJAQLResults('json')">Export JSON</button>
+            <button class="btn btn-secondary btn-sm" onclick="copyJAQLResults()">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <!-- Sample JAQL Modal -->
+    <div id="sample-jaql-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Sample JAQL Queries</h3>
+                <button class="btn-close" onclick="closeSampleJAQLModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="sample-jaql" onclick="useSampleJAQL(this)">
+                    <h4>Basic Select</h4>
+                    <code>{
+  "datasource": "your_datasource",
+  "metadata": [
+    {
+      "jaql": {
+        "dim": "[Table].[Column]",
+        "datatype": "text"
+      },
+      "panel": "columns"
+    }
+  ]
+}</code>
+                </div>
+                <div class="sample-jaql" onclick="useSampleJAQL(this)">
+                    <h4>Count Aggregation</h4>
+                    <code>{
+  "datasource": "your_datasource",
+  "metadata": [
+    {
+      "jaql": {
+        "dim": "[Table].[Column]",
+        "datatype": "text"
+      },
+      "panel": "columns"
+    },
+    {
+      "jaql": {
+        "agg": "count",
+        "title": "Count"
+      },
+      "panel": "values"
+    }
+  ]
+}</code>
+                </div>
+                <div class="sample-jaql" onclick="useSampleJAQL(this)">
+                    <h4>Filtered Query</h4>
+                    <code>{
+  "datasource": "your_datasource",
+  "metadata": [
+    {
+      "jaql": {
+        "dim": "[Table].[Column]",
+        "datatype": "text"
+      },
+      "panel": "columns"
+    },
+    {
+      "jaql": {
+        "dim": "[Table].[FilterColumn]",
+        "filter": {
+          "equals": "value"
+        }
+      },
+      "panel": "filters"
+    }
+  ]
+}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentJAQLResults = null;
+
+function buildJAQL() {
+    const datasource = document.getElementById('builder-datasource').value;
+    const table = document.getElementById('builder-table').value;
+    const columns = document.getElementById('builder-columns').value;
+    const limit = document.getElementById('builder-limit').value;
+    
+    if (!datasource || !table || !columns) {
+        window.sisenseUI.showAlert('Please provide datasource, table, and columns', 'warning');
+        return;
+    }
+    
+    const columnList = columns.split(',').map(col => col.trim());
+    const metadata = columnList.map(column => ({
+        jaql: {
+            dim: `[${table}].[${column}]`,
+            datatype: "text"
+        },
+        panel: "columns"
+    }));
+    
+    const jaqlQuery = {
+        datasource: datasource,
+        metadata: metadata
+    };
+    
+    if (limit) {
+        jaqlQuery.count = parseInt(limit);
+    }
+    
+    document.getElementById('jaql-query').value = JSON.stringify(jaqlQuery, null, 2);
+    document.getElementById('jaql-datasource').value = datasource;
+    
+    window.sisenseUI.showAlert('JAQL query built successfully', 'success');
+}
+
+async function getDataSourceMetadata() {
+    const datasource = document.getElementById('builder-datasource').value;
+    
+    if (!datasource) {
+        window.sisenseUI.showAlert('Please provide a datasource name', 'warning');
+        return;
+    }
+    
+    const metadataDiv = document.getElementById('metadata-results');
+    const contentDiv = document.getElementById('metadata-content');
+    
+    try {
+        contentDiv.innerHTML = '<div class="spinner"></div>';
+        metadataDiv.style.display = 'block';
+        
+        const response = await fetch(`/api/datasources/${datasource}/jaql/metadata`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            contentDiv.innerHTML = `<div class="code-block"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+        } else {
+            contentDiv.innerHTML = `<div class="alert alert-danger">Failed to get metadata: ${data.message}</div>`;
+        }
+    } catch (error) {
+        contentDiv.innerHTML = `<div class="alert alert-danger">Metadata error: ${error.message}</div>`;
+    }
+}
+
+async function validateJAQL() {
+    const jaqlQuery = document.getElementById('jaql-query').value;
+    
+    if (!jaqlQuery) {
+        window.sisenseUI.showAlert('Please provide a JAQL query', 'warning');
+        return;
+    }
+    
+    const validationDiv = document.getElementById('jaql-validation-results');
+    const contentDiv = document.getElementById('jaql-validation-content');
+    
+    try {
+        const parsedJAQL = JSON.parse(jaqlQuery);
+        
+        contentDiv.innerHTML = '<div class="spinner"></div>';
+        validationDiv.style.display = 'block';
+        
+        // Simple client-side validation
+        const validation = {
+            valid: true,
+            warnings: [],
+            errors: []
+        };
+        
+        if (!parsedJAQL.datasource) {
+            validation.valid = false;
+            validation.errors.push("Missing required 'datasource' field");
+        }
+        
+        if (!parsedJAQL.metadata || !Array.isArray(parsedJAQL.metadata)) {
+            validation.valid = false;
+            validation.errors.push("Missing or invalid 'metadata' field");
+        }
+        
+        if (parsedJAQL.metadata && parsedJAQL.metadata.length === 0) {
+            validation.warnings.push("Metadata array is empty");
+        }
+        
+        let html = '';
+        if (validation.valid) {
+            html = '<div class="alert alert-success">✓ JAQL query structure is valid</div>';
+        } else {
+            html = '<div class="alert alert-danger">✗ JAQL query validation failed</div>';
+            if (validation.errors.length > 0) {
+                html += '<ul>';
+                validation.errors.forEach(error => {
+                    html += `<li class="text-danger">${escapeHtml(error)}</li>`;
+                });
+                html += '</ul>';
+            }
+        }
+        
+        if (validation.warnings.length > 0) {
+            html += '<div class="alert alert-warning"><strong>Warnings:</strong>';
+            html += '<ul>';
+            validation.warnings.forEach(warning => {
+                html += `<li>${escapeHtml(warning)}</li>`;
+            });
+            html += '</ul></div>';
+        }
+        
+        contentDiv.innerHTML = html;
+    } catch (error) {
+        contentDiv.innerHTML = `<div class="alert alert-danger">Invalid JSON: ${error.message}</div>`;
+        validationDiv.style.display = 'block';
+    }
+}
+
+function formatJAQL() {
+    const textarea = document.getElementById('jaql-query');
+    const jaqlQuery = textarea.value;
+    
+    if (!jaqlQuery) {
+        window.sisenseUI.showAlert('Please provide a JAQL query to format', 'warning');
+        return;
+    }
+    
+    try {
+        const parsedJAQL = JSON.parse(jaqlQuery);
+        textarea.value = JSON.stringify(parsedJAQL, null, 2);
+        window.sisenseUI.showAlert('JAQL query formatted successfully', 'success');
+    } catch (error) {
+        window.sisenseUI.showAlert('Invalid JSON: ' + error.message, 'danger');
+    }
+}
+
+function clearJAQL() {
+    document.getElementById('jaql-query').value = '';
+    document.getElementById('jaql-datasource').value = '';
+    document.getElementById('jaql-format').value = 'json';
+    document.getElementById('jaql-timeout').value = '';
+    document.getElementById('jaql-results').innerHTML = '<div class="alert alert-info">Execute a JAQL query to see results here.</div>';
+    document.getElementById('jaql-result-actions').style.display = 'none';
+    document.getElementById('jaql-validation-results').style.display = 'none';
+    document.getElementById('metadata-results').style.display = 'none';
+    currentJAQLResults = null;
+}
+
+function loadSampleJAQL() {
+    document.getElementById('sample-jaql-modal').style.display = 'block';
+}
+
+function closeSampleJAQLModal() {
+    document.getElementById('sample-jaql-modal').style.display = 'none';
+}
+
+function useSampleJAQL(element) {
+    const code = element.querySelector('code').textContent;
+    document.getElementById('jaql-query').value = code;
+    closeSampleJAQLModal();
+}
+
+function exportJAQLResults(format) {
+    if (!currentJAQLResults) {
+        window.sisenseUI.showAlert('No results to export', 'warning');
+        return;
+    }
+    
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const filename = `sisense_jaql_results_${timestamp}.${format}`;
+    
+    downloadJSON(currentJAQLResults, filename);
+    window.sisenseUI.showAlert(`Results exported as ${format.toUpperCase()}`, 'success');
+}
+
+function copyJAQLResults() {
+    if (!currentJAQLResults) {
+        window.sisenseUI.showAlert('No results to copy', 'warning');
+        return;
+    }
+    
+    const text = JSON.stringify(currentJAQLResults, null, 2);
+    copyToClipboard(text);
+}
+
+// Override the displayJAQLResults function to store results
+const originalDisplayJAQLResults = window.sisenseUI.displayJAQLResults;
+window.sisenseUI.displayJAQLResults = function(data, container) {
+    currentJAQLResults = data;
+    originalDisplayJAQLResults.call(this, data, container);
+    
+    // Show export actions
+    document.getElementById('jaql-result-actions').style.display = 'block';
+};
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+// Initialize syntax highlighting for JSON
+document.addEventListener('DOMContentLoaded', () => {
+    const textarea = document.getElementById('jaql-query');
+    
+    // Set default JAQL template
+    textarea.value = `{
+  "datasource": "your_datasource",
+  "metadata": [
+    {
+      "jaql": {
+        "dim": "[Table].[Column]",
+        "datatype": "text"
+      },
+      "panel": "columns"
+    }
+  ]
+}`;
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('jaql-form').dispatchEvent(new Event('submit'));
+    }
+});
+</script>
+
+<style>
+.sample-jaql {
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.sample-jaql:hover {
+    background: #f8f9fa;
+    border-color: #667eea;
+}
+
+.sample-jaql h4 {
+    margin: 0 0 0.5rem 0;
+    color: #495057;
+}
+
+.sample-jaql code {
+    background: #f8f9fa;
+    padding: 0.5rem;
+    border-radius: 4px;
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: #495057;
+    white-space: pre-wrap;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1rem;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.btn-close:hover {
+    background: #f8f9fa;
+}
+
+#jaql-query {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}

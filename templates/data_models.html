@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+
+{% block title %}Data Models - Sisense Flask Integration{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="card">
+        <h2>Data Models</h2>
+        <p>Browse and explore your Sisense data models with detailed schema information.</p>
+        
+        <!-- Search and Filter Section -->
+        <div class="grid">
+            <div class="form-group">
+                <label for="model-search">Search Data Models:</label>
+                <input type="text" id="model-search" class="form-control" placeholder="Search by name or description...">
+            </div>
+            <div class="form-group">
+                <label for="model-type-filter">Filter by Type:</label>
+                <select id="model-type-filter" class="form-control">
+                    <option value="">All Types</option>
+                    <option value="live">Live</option>
+                    <option value="extract">Extract</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <button class="btn btn-primary refresh-btn" data-target="models">
+                Refresh Models
+            </button>
+            <button class="btn btn-success" onclick="exportModelsSchema()">
+                Export Schema
+            </button>
+        </div>
+    </div>
+
+    <!-- Search Results -->
+    <div id="model-results"></div>
+
+    <!-- All Models List -->
+    <div class="card">
+        <h2>All Data Models</h2>
+        <div id="models-list">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- Model Details Modal -->
+    <div id="model-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-model-title">Model Details</h3>
+                <button class="btn-close" onclick="closeModelModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="model-details"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadDataModels() {
+    const container = document.getElementById('models-list');
+    
+    try {
+        const response = await fetch('/api/datamodels');
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayModelsList(data.data, container);
+        } else {
+            container.innerHTML = `<div class="alert alert-danger">Failed to load data models: ${data.message}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">Error loading data models: ${error.message}</div>`;
+    }
+}
+
+function displayModelsList(models, container) {
+    if (!models || models.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No data models found</div>';
+        return;
+    }
+
+    let html = '<div class="table-container"><table class="table"><thead><tr>';
+    html += '<th>Name</th><th>Type</th><th>Description</th><th>Last Modified</th><th>Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    models.forEach(model => {
+        html += `<tr>
+            <td><strong>${escapeHtml(model.title)}</strong></td>
+            <td><span class="badge badge-info">${model.type || 'Unknown'}</span></td>
+            <td>${escapeHtml(model.description || 'No description')}</td>
+            <td>${formatDateTime(model.lastModified)}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="viewModelDetails('${model.oid}')">
+                    View Details
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="viewModelTables('${model.oid}')">
+                    Tables
+                </button>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+async function viewModelDetails(modelId) {
+    const modal = document.getElementById('model-modal');
+    const title = document.getElementById('modal-model-title');
+    const content = document.getElementById('model-details');
+    
+    try {
+        content.innerHTML = '<div class="spinner"></div>';
+        modal.style.display = 'block';
+        
+        const response = await fetch(`/api/datamodels/${modelId}`);
+        const model = await response.json();
+        
+        if (response.ok) {
+            title.textContent = model.title;
+            
+            let html = `
+                <div class="form-group">
+                    <label>Model ID:</label>
+                    <input type="text" class="form-control" value="${model.oid}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Type:</label>
+                    <input type="text" class="form-control" value="${model.type || 'Unknown'}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Description:</label>
+                    <textarea class="form-control" rows="3" readonly>${model.description || 'No description'}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Created:</label>
+                    <input type="text" class="form-control" value="${formatDateTime(model.created)}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Last Modified:</label>
+                    <input type="text" class="form-control" value="${formatDateTime(model.lastModified)}" readonly>
+                </div>
+            `;
+            
+            if (model.tables && model.tables.length > 0) {
+                html += `<h4>Tables (${model.tables.length})</h4>`;
+                html += '<div class="table-container"><table class="table"><thead><tr>';
+                html += '<th>Table Name</th><th>Columns</th></tr></thead><tbody>';
+                
+                model.tables.forEach(table => {
+                    html += `<tr>
+                        <td>${escapeHtml(table.name)}</td>
+                        <td>${table.columns ? table.columns.length : 0}</td>
+                    </tr>`;
+                });
+                
+                html += '</tbody></table></div>';
+            }
+            
+            content.innerHTML = html;
+        } else {
+            content.innerHTML = `<div class="alert alert-danger">Failed to load model details: ${model.message}</div>`;
+        }
+    } catch (error) {
+        content.innerHTML = `<div class="alert alert-danger">Error loading model details: ${error.message}</div>`;
+    }
+}
+
+async function viewModelTables(modelId) {
+    try {
+        const response = await fetch(`/api/datamodels/${modelId}/tables`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            const modal = document.getElementById('model-modal');
+            const title = document.getElementById('modal-model-title');
+            const content = document.getElementById('model-details');
+            
+            title.textContent = 'Model Tables';
+            
+            let html = '<div class="table-container"><table class="table"><thead><tr>';
+            html += '<th>Table Name</th><th>Columns</th><th>Actions</th></tr></thead><tbody>';
+            
+            data.data.forEach(table => {
+                html += `<tr>
+                    <td><strong>${escapeHtml(table.name)}</strong></td>
+                    <td>${table.columns ? table.columns.length : 0}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="viewTableColumns('${modelId}', '${table.name}')">
+                            View Columns
+                        </button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+            content.innerHTML = html;
+            modal.style.display = 'block';
+        } else {
+            window.sisenseUI.showAlert(`Failed to load tables: ${data.message}`, 'danger');
+        }
+    } catch (error) {
+        window.sisenseUI.showAlert(`Error loading tables: ${error.message}`, 'danger');
+    }
+}
+
+async function viewTableColumns(modelId, tableName) {
+    try {
+        const response = await fetch(`/api/datamodels/${modelId}/columns?table=${encodeURIComponent(tableName)}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            const content = document.getElementById('model-details');
+            
+            let html = `<h4>Columns for ${escapeHtml(tableName)}</h4>`;
+            html += '<div class="table-container"><table class="table"><thead><tr>';
+            html += '<th>Column Name</th><th>Type</th><th>Description</th></tr></thead><tbody>';
+            
+            data.data.forEach(column => {
+                html += `<tr>
+                    <td><strong>${escapeHtml(column.name)}</strong></td>
+                    <td><span class="badge badge-info">${column.type || 'Unknown'}</span></td>
+                    <td>${escapeHtml(column.description || 'No description')}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+            html += '<button class="btn btn-secondary" onclick="viewModelTables(\'' + modelId + '\')">Back to Tables</button>';
+            
+            content.innerHTML = html;
+        } else {
+            window.sisenseUI.showAlert(`Failed to load columns: ${data.message}`, 'danger');
+        }
+    } catch (error) {
+        window.sisenseUI.showAlert(`Error loading columns: ${error.message}`, 'danger');
+    }
+}
+
+function closeModelModal() {
+    document.getElementById('model-modal').style.display = 'none';
+}
+
+async function exportModelsSchema() {
+    try {
+        const response = await fetch('/api/datamodels/export/schema');
+        const data = await response.json();
+        
+        if (response.ok) {
+            downloadJSON(data, 'sisense_models_schema.json');
+            window.sisenseUI.showAlert('Schema exported successfully', 'success');
+        } else {
+            window.sisenseUI.showAlert(`Export failed: ${data.message}`, 'danger');
+        }
+    } catch (error) {
+        window.sisenseUI.showAlert(`Export error: ${error.message}`, 'danger');
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    loadDataModels();
+    
+    // Setup type filter
+    document.getElementById('model-type-filter').addEventListener('change', async (e) => {
+        const type = e.target.value;
+        const container = document.getElementById('models-list');
+        
+        try {
+            container.innerHTML = '<div class="spinner"></div>';
+            
+            const url = type ? `/api/datamodels?type=${encodeURIComponent(type)}` : '/api/datamodels';
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (response.ok) {
+                displayModelsList(data.data, container);
+            } else {
+                container.innerHTML = `<div class="alert alert-danger">Failed to load data models: ${data.message}</div>`;
+            }
+        } catch (error) {
+            container.innerHTML = `<div class="alert alert-danger">Error loading data models: ${error.message}</div>`;
+        }
+    });
+});
+</script>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1rem;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.btn-close:hover {
+    background: #f8f9fa;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboards - Sisense Flask Integration{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="card">
+        <h2>Sisense Dashboards</h2>
+        <p>Browse and explore your Sisense dashboards with detailed information about widgets and filters.</p>
+        
+        <!-- Search and Filter Section -->
+        <div class="grid">
+            <div class="form-group">
+                <label for="dashboard-search">Search Dashboards:</label>
+                <input type="text" id="dashboard-search" class="form-control" placeholder="Search by title or description...">
+            </div>
+            <div class="form-group">
+                <label for="owner-filter">Filter by Owner:</label>
+                <input type="text" id="owner-filter" class="form-control" placeholder="Owner ID or name">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <button class="btn btn-primary refresh-btn" data-target="dashboards">
+                Refresh Dashboards
+            </button>
+            <button class="btn btn-secondary" onclick="loadDashboardsByOwner()">
+                Filter by Owner
+            </button>
+        </div>
+    </div>
+
+    <!-- Search Results -->
+    <div id="dashboard-results"></div>
+
+    <!-- All Dashboards List -->
+    <div class="card">
+        <h2>All Dashboards</h2>
+        <div id="dashboards-list">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- Dashboard Details Modal -->
+    <div id="dashboard-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-dashboard-title">Dashboard Details</h3>
+                <button class="btn-close" onclick="closeDashboardModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="dashboard-details"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadDashboards() {
+    const container = document.getElementById('dashboards-list');
+    
+    try {
+        const response = await fetch('/api/dashboards');
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayDashboardsList(data.data, container);
+        } else {
+            container.innerHTML = `<div class="alert alert-danger">Failed to load dashboards: ${data.message}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">Error loading dashboards: ${error.message}</div>`;
+    }
+}
+
+async function loadDashboardsByOwner() {
+    const owner = document.getElementById('owner-filter').value;
+    const container = document.getElementById('dashboards-list');
+    
+    try {
+        container.innerHTML = '<div class="spinner"></div>';
+        
+        const url = owner ? `/api/dashboards?owner=${encodeURIComponent(owner)}` : '/api/dashboards';
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayDashboardsList(data.data, container);
+        } else {
+            container.innerHTML = `<div class="alert alert-danger">Failed to load dashboards: ${data.message}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">Error loading dashboards: ${error.message}</div>`;
+    }
+}
+
+function displayDashboardsList(dashboards, container) {
+    if (!dashboards || dashboards.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No dashboards found</div>';
+        return;
+    }
+
+    let html = '<div class="table-container"><table class="table"><thead><tr>';
+    html += '<th>Title</th><th>Owner</th><th>Created</th><th>Last Modified</th><th>Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    dashboards.forEach(dashboard => {
+        html += `<tr>
+            <td><strong>${escapeHtml(dashboard.title)}</strong></td>
+            <td>${escapeHtml(dashboard.owner || 'Unknown')}</td>
+            <td>${formatDateTime(dashboard.created)}</td>
+            <td>${formatDateTime(dashboard.lastModified)}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="viewDashboardDetails('${dashboard.oid}')">
+                    View Details
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="viewDashboardWidgets('${dashboard.oid}')">
+                    Widgets
+                </button>
+                <button class="btn btn-success btn-sm" onclick="getDashboardSummary('${dashboard.oid}')">
+                    Summary
+                </button>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+async function viewDashboardDetails(dashboardId) {
+    const modal = document.getElementById('dashboard-modal');
+    const title = document.getElementById('modal-dashboard-title');
+    const content = document.getElementById('dashboard-details');
+    
+    try {
+        content.innerHTML = '<div class="spinner"></div>';
+        modal.style.display = 'block';
+        
+        const response = await fetch(`/api/dashboards/${dashboardId}`);
+        const dashboard = await response.json();
+        
+        if (response.ok) {
+            title.textContent = dashboard.title;
+            
+            let html = `
+                <div class="form-group">
+                    <label>Dashboard ID:</label>
+                    <input type="text" class="form-control" value="${dashboard.oid}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Title:</label>
+                    <input type="text" class="form-control" value="${dashboard.title}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Description:</label>
+                    <textarea class="form-control" rows="3" readonly>${dashboard.description || 'No description'}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Owner:</label>
+                    <input type="text" class="form-control" value="${dashboard.owner || 'Unknown'}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Created:</label>
+                    <input type="text" class="form-control" value="${formatDateTime(dashboard.created)}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Last Modified:</label>
+                    <input type="text" class="form-control" value="${formatDateTime(dashboard.lastModified)}" readonly>
+                </div>
+            `;
+            
+            if (dashboard.datasource) {
+                html += `
+                    <div class="form-group">
+                        <label>Data Source:</label>
+                        <input type="text" class="form-control" value="${dashboard.datasource.title || 'Unknown'}" readonly>
+                    </div>
+                `;
+            }
+            
+            if (dashboard.filters && dashboard.filters.length > 0) {
+                html += `<h4>Filters (${dashboard.filters.length})</h4>`;
+                html += '<div class="table-container"><table class="table"><thead><tr>';
+                html += '<th>Filter Name</th><th>Type</th></tr></thead><tbody>';
+                
+                dashboard.filters.forEach(filter => {
+                    html += `<tr>
+                        <td>${escapeHtml(filter.jaql?.title || 'Unnamed Filter')}</td>
+                        <td><span class="badge badge-info">${filter.jaql?.datatype || 'Unknown'}</span></td>
+                    </tr>`;
+                });
+                
+                html += '</tbody></table></div>';
+            }
+            
+            content.innerHTML = html;
+        } else {
+            content.innerHTML = `<div class="alert alert-danger">Failed to load dashboard details: ${dashboard.message}</div>`;
+        }
+    } catch (error) {
+        content.innerHTML = `<div class="alert alert-danger">Error loading dashboard details: ${error.message}</div>`;
+    }
+}
+
+async function viewDashboardWidgets(dashboardId) {
+    try {
+        const response = await fetch(`/api/dashboards/${dashboardId}/widgets`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            const modal = document.getElementById('dashboard-modal');
+            const title = document.getElementById('modal-dashboard-title');
+            const content = document.getElementById('dashboard-details');
+            
+            title.textContent = 'Dashboard Widgets';
+            
+            let html = '<div class="table-container"><table class="table"><thead><tr>';
+            html += '<th>Widget Title</th><th>Type</th><th>Data Source</th><th>Actions</th></tr></thead><tbody>';
+            
+            data.data.forEach(widget => {
+                html += `<tr>
+                    <td><strong>${escapeHtml(widget.title)}</strong></td>
+                    <td><span class="badge badge-info">${widget.type || 'Unknown'}</span></td>
+                    <td>${escapeHtml(widget.datasource?.title || 'Unknown')}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="viewWidgetDetails('${widget.oid}')">
+                            View Widget
+                        </button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+            content.innerHTML = html;
+            modal.style.display = 'block';
+        } else {
+            window.sisenseUI.showAlert(`Failed to load widgets: ${data.message}`, 'danger');
+        }
+    } catch (error) {
+        window.sisenseUI.showAlert(`Error loading widgets: ${error.message}`, 'danger');
+    }
+}
+
+async function getDashboardSummary(dashboardId) {
+    try {
+        const response = await fetch(`/api/dashboards/${dashboardId}/summary`);
+        const summary = await response.json();
+        
+        if (response.ok) {
+            const modal = document.getElementById('dashboard-modal');
+            const title = document.getElementById('modal-dashboard-title');
+            const content = document.getElementById('dashboard-details');
+            
+            title.textContent = 'Dashboard Summary';
+            
+            let html = `
+                <div class="grid">
+                    <div class="card">
+                        <h4>Basic Info</h4>
+                        <p><strong>Title:</strong> ${escapeHtml(summary.title)}</p>
+                        <p><strong>Description:</strong> ${escapeHtml(summary.description || 'No description')}</p>
+                        <p><strong>Owner:</strong> ${escapeHtml(summary.owner || 'Unknown')}</p>
+                        <p><strong>Created:</strong> ${formatDateTime(summary.created)}</p>
+                        <p><strong>Last Modified:</strong> ${formatDateTime(summary.lastModified)}</p>
+                    </div>
+                    <div class="card">
+                        <h4>Statistics</h4>
+                        <p><strong>Widgets:</strong> ${summary.widget_count}</p>
+                        <p><strong>Filters:</strong> ${summary.filter_count}</p>
+                        <p><strong>Data Sources:</strong> ${summary.data_sources.length}</p>
+                    </div>
+                </div>
+            `;
+            
+            if (summary.data_sources.length > 0) {
+                html += '<h4>Data Sources</h4><ul>';
+                summary.data_sources.forEach(ds => {
+                    html += `<li>${escapeHtml(ds)}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            if (summary.widget_types.length > 0) {
+                html += '<h4>Widget Types</h4><div>';
+                summary.widget_types.forEach(type => {
+                    html += `<span class="badge badge-info" style="margin-right: 0.5rem;">${escapeHtml(type)}</span>`;
+                });
+                html += '</div>';
+            }
+            
+            content.innerHTML = html;
+            modal.style.display = 'block';
+        } else {
+            window.sisenseUI.showAlert(`Failed to load summary: ${summary.message}`, 'danger');
+        }
+    } catch (error) {
+        window.sisenseUI.showAlert(`Error loading summary: ${error.message}`, 'danger');
+    }
+}
+
+async function viewWidgetDetails(widgetId) {
+    try {
+        const response = await fetch(`/api/widgets/${widgetId}`);
+        const widget = await response.json();
+        
+        if (response.ok) {
+            const content = document.getElementById('dashboard-details');
+            
+            let html = `
+                <h4>Widget: ${escapeHtml(widget.title)}</h4>
+                <div class="form-group">
+                    <label>Widget ID:</label>
+                    <input type="text" class="form-control" value="${widget.oid}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Type:</label>
+                    <input type="text" class="form-control" value="${widget.type}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Description:</label>
+                    <textarea class="form-control" rows="3" readonly>${widget.description || 'No description'}</textarea>
+                </div>
+            `;
+            
+            if (widget.datasource) {
+                html += `
+                    <div class="form-group">
+                        <label>Data Source:</label>
+                        <input type="text" class="form-control" value="${widget.datasource.title}" readonly>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="form-group">
+                    <button class="btn btn-secondary" onclick="viewDashboardWidgets('${widget.dashboardid || 'unknown'}')">
+                        Back to Widgets
+                    </button>
+                    <button class="btn btn-primary" onclick="getWidgetSummary('${widget.oid}')">
+                        Widget Summary
+                    </button>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+        } else {
+            window.sisenseUI.showAlert(`Failed to load widget: ${widget.message}`, 'danger');
+        }
+    } catch (error) {
+        window.sisenseUI.showAlert(`Error loading widget: ${error.message}`, 'danger');
+    }
+}
+
+async function getWidgetSummary(widgetId) {
+    try {
+        const response = await fetch(`/api/widgets/${widgetId}/summary`);
+        const summary = await response.json();
+        
+        if (response.ok) {
+            const content = document.getElementById('dashboard-details');
+            
+            let html = `
+                <h4>Widget Summary</h4>
+                <div class="grid">
+                    <div class="card">
+                        <h5>Basic Info</h5>
+                        <p><strong>Title:</strong> ${escapeHtml(summary.title)}</p>
+                        <p><strong>Type:</strong> ${escapeHtml(summary.type)}</p>
+                        <p><strong>Chart Type:</strong> ${escapeHtml(summary.chart_type)}</p>
+                        <p><strong>Data Source:</strong> ${escapeHtml(summary.datasource)}</p>
+                    </div>
+                    <div class="card">
+                        <h5>Statistics</h5>
+                        <p><strong>Dimensions:</strong> ${summary.dimension_count}</p>
+                        <p><strong>Measures:</strong> ${summary.measure_count}</p>
+                        <p><strong>Filters:</strong> ${summary.filter_count}</p>
+                    </div>
+                </div>
+            `;
+            
+            if (summary.dimensions.length > 0) {
+                html += '<h5>Dimensions</h5><ul>';
+                summary.dimensions.forEach(dim => {
+                    html += `<li>${escapeHtml(dim)}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            if (summary.measures.length > 0) {
+                html += '<h5>Measures</h5><ul>';
+                summary.measures.forEach(measure => {
+                    html += `<li>${escapeHtml(measure)}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            content.innerHTML = html;
+        } else {
+            window.sisenseUI.showAlert(`Failed to load widget summary: ${summary.message}`, 'danger');
+        }
+    } catch (error) {
+        window.sisenseUI.showAlert(`Error loading widget summary: ${error.message}`, 'danger');
+    }
+}
+
+function closeDashboardModal() {
+    document.getElementById('dashboard-modal').style.display = 'none';
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboards();
+});
+</script>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1000px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1rem;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.btn-close:hover {
+    background: #f8f9fa;
+}
+
+.card h4, .card h5 {
+    margin-top: 0;
+}
+</style>
+{% endblock %}

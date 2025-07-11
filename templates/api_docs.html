@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+
+{% block title %}API Documentation - Sisense Flask Integration{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="card">
+        <h2>API Documentation</h2>
+        <p>Complete documentation for the Sisense Flask REST API endpoints.</p>
+        
+        <div class="grid">
+            <div class="card">
+                <h4>Base URL</h4>
+                <code>{{ base_url }}</code>
+            </div>
+            <div class="card">
+                <h4>Authentication</h4>
+                <p>API token required for all endpoints</p>
+                <code>Authorization: Bearer &lt;api_token&gt;</code>
+                <p class="mt-2"><small>Set your API token in the .env file as SISENSE_API_TOKEN</small></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Authentication Endpoints -->
+    <div class="card">
+        <h2>Authentication</h2>
+        <p><strong>Note:</strong> This application uses API token authentication. Configure your Sisense API token in the .env file.</p>
+        
+        <div class="api-endpoint">
+            <h3>POST /api/auth/login</h3>
+            <p>Verify API token configuration (no credentials needed)</p>
+            <div class="api-details">
+                <h4>Description</h4>
+                <p>With API token authentication, this endpoint simply returns the configured token. No login request is sent to Sisense.</p>
+                
+                <h4>Request</h4>
+                <div class="code-block">
+                    <pre>POST /api/auth/login
+Content-Type: application/json
+
+{}</pre>
+                </div>
+                
+                <h4>Response</h4>
+                <div class="code-block">
+                    <pre>{
+  "access_token": "your_configured_api_token",
+  "token_type": "Bearer"
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/auth/validate</h3>
+            <p>Validate API token configuration</p>
+            <div class="api-details">
+                <h4>Response</h4>
+                <div class="code-block">
+                    <pre>{
+  "valid": true,
+  "timestamp": 1704067200
+}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Models Endpoints -->
+    <div class="card">
+        <h2>Data Models (v2)</h2>
+        
+        <div class="api-endpoint">
+            <h3>GET /api/datamodels</h3>
+            <p>List all data models</p>
+            <div class="api-details">
+                <h4>Parameters</h4>
+                <ul>
+                    <li><code>type</code> (optional) - Filter by model type (live, extract, custom)</li>
+                </ul>
+                
+                <h4>Response</h4>
+                <div class="code-block">
+                    <pre>{
+  "data": [
+    {
+      "oid": "model_id",
+      "title": "Model Name",
+      "type": "live",
+      "description": "Model description",
+      "created": "2024-01-01T00:00:00Z",
+      "lastModified": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "count": 1
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/datamodels/{model_oid}</h3>
+            <p>Get specific data model details</p>
+            <div class="api-details">
+                <h4>Response</h4>
+                <div class="code-block">
+                    <pre>{
+  "oid": "model_id",
+  "title": "Model Name",
+  "type": "live",
+  "description": "Model description",
+  "tables": [
+    {
+      "name": "table_name",
+      "columns": [...]
+    }
+  ]
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/datamodels/export/schema</h3>
+            <p>Export data model schema</p>
+            <div class="api-details">
+                <h4>Parameters</h4>
+                <ul>
+                    <li><code>model</code> (optional) - Specific model OID</li>
+                    <li><code>unmasked</code> (optional) - Include unmasked data (admin only)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connections Endpoints -->
+    <div class="card">
+        <h2>Connections (v2)</h2>
+        
+        <div class="api-endpoint">
+            <h3>GET /api/connections</h3>
+            <p>List all data source connections</p>
+            <div class="api-details">
+                <h4>Parameters</h4>
+                <ul>
+                    <li><code>type</code> (optional) - Filter by connection type</li>
+                    <li><code>credentials</code> (optional) - Include credentials (admin only)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/connections/{connection_id}</h3>
+            <p>Get specific connection details</p>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>POST /api/connections/{connection_id}/test</h3>
+            <p>Test connection</p>
+            <div class="api-details">
+                <h4>Response</h4>
+                <div class="code-block">
+                    <pre>{
+  "status": "success",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "details": {}
+}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboards Endpoints -->
+    <div class="card">
+        <h2>Dashboards (v1)</h2>
+        
+        <div class="api-endpoint">
+            <h3>GET /api/dashboards</h3>
+            <p>List all dashboards</p>
+            <div class="api-details">
+                <h4>Parameters</h4>
+                <ul>
+                    <li><code>owner</code> (optional) - Filter by owner</li>
+                    <li><code>shared</code> (optional) - Filter shared dashboards</li>
+                    <li><code>fields</code> (optional) - Comma-separated fields to include</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/dashboards/{dashboard_id}</h3>
+            <p>Get specific dashboard details</p>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/dashboards/{dashboard_id}/widgets</h3>
+            <p>Get widgets for a dashboard</p>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/dashboards/{dashboard_id}/summary</h3>
+            <p>Get dashboard summary information</p>
+        </div>
+    </div>
+
+    <!-- Widgets Endpoints -->
+    <div class="card">
+        <h2>Widgets (v1)</h2>
+        
+        <div class="api-endpoint">
+            <h3>GET /api/widgets/{widget_id}</h3>
+            <p>Get specific widget details</p>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/widgets/{widget_id}/jaql</h3>
+            <p>Get JAQL query for a widget</p>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/widgets/{widget_id}/data</h3>
+            <h3>POST /api/widgets/{widget_id}/data</h3>
+            <p>Get widget data with optional filters</p>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/widgets/{widget_id}/summary</h3>
+            <p>Get widget summary information</p>
+        </div>
+    </div>
+
+    <!-- SQL Endpoints -->
+    <div class="card">
+        <h2>SQL Queries</h2>
+        
+        <div class="api-endpoint">
+            <h3>GET /api/datasources/{datasource}/sql</h3>
+            <p>Execute SQL query (read-only)</p>
+            <div class="api-details">
+                <h4>Parameters</h4>
+                <ul>
+                    <li><code>query</code> (required) - SQL query string</li>
+                    <li><code>limit</code> (optional) - Row limit</li>
+                    <li><code>offset</code> (optional) - Row offset</li>
+                    <li><code>timeout</code> (optional) - Query timeout in seconds</li>
+                </ul>
+                
+                <h4>Response</h4>
+                <div class="code-block">
+                    <pre>{
+  "data": [
+    ["value1", "value2"],
+    ["value3", "value4"]
+  ],
+  "columns": ["column1", "column2"],
+  "count": 2
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>POST /api/datasources/{datasource}/sql/validate</h3>
+            <p>Validate SQL query</p>
+            <div class="api-details">
+                <h4>Request</h4>
+                <div class="code-block">
+                    <pre>{
+  "query": "SELECT * FROM table_name LIMIT 10"
+}</pre>
+                </div>
+                
+                <h4>Response</h4>
+                <div class="code-block">
+                    <pre>{
+  "valid": true,
+  "is_read_only": true,
+  "warnings": [],
+  "errors": []
+}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAQL Endpoints -->
+    <div class="card">
+        <h2>JAQL Queries</h2>
+        
+        <div class="api-endpoint">
+            <h3>POST /api/datasources/{datasource}/jaql</h3>
+            <p>Execute JAQL query</p>
+            <div class="api-details">
+                <h4>Request</h4>
+                <div class="code-block">
+                    <pre>{
+  "jaql": {
+    "datasource": "datasource_name",
+    "metadata": [
+      {
+        "jaql": {
+          "dim": "[Table].[Column]",
+          "datatype": "text"
+        },
+        "panel": "columns"
+      }
+    ]
+  },
+  "format": "json"
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/datasources/{datasource}/jaql/metadata</h3>
+            <p>Get metadata for datasource</p>
+            <div class="api-details">
+                <h4>Parameters</h4>
+                <ul>
+                    <li><code>table</code> (optional) - Specific table name</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/datasources/{datasource}/catalog</h3>
+            <p>Get complete catalog for datasource</p>
+        </div>
+    </div>
+
+    <!-- Search Endpoints -->
+    <div class="card">
+        <h2>Search</h2>
+        
+        <div class="api-endpoint">
+            <h3>GET /api/search/dashboards</h3>
+            <p>Search dashboards</p>
+            <div class="api-details">
+                <h4>Parameters</h4>
+                <ul>
+                    <li><code>q</code> (required) - Search query</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="api-endpoint">
+            <h3>GET /api/search/datamodels</h3>
+            <p>Search data models</p>
+            <div class="api-details">
+                <h4>Parameters</h4>
+                <ul>
+                    <li><code>q</code> (required) - Search query</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Health Check -->
+    <div class="card">
+        <h2>System</h2>
+        
+        <div class="api-endpoint">
+            <h3>GET /health</h3>
+            <p>Health check endpoint</p>
+            <div class="api-details">
+                <h4>Response</h4>
+                <div class="code-block">
+                    <pre>{
+  "status": "healthy",
+  "authentication": "valid",
+  "sisense_url": "https://your-sisense-instance.com",
+  "timestamp": 1704067200
+}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Handling -->
+    <div class="card">
+        <h2>Error Handling</h2>
+        <p>All API endpoints return consistent error responses:</p>
+        
+        <div class="code-block">
+            <pre>{
+  "error": "error_type",
+  "message": "Human readable error message",
+  "status_code": 400,
+  "details": {}
+}</pre>
+        </div>
+        
+        <h3>Common Error Types</h3>
+        <ul>
+            <li><code>sisense_api_error</code> - Error from Sisense API</li>
+            <li><code>http_error</code> - HTTP protocol error</li>
+            <li><code>internal_error</code> - Server internal error</li>
+            <li><code>validation_error</code> - Request validation failed</li>
+        </ul>
+        
+        <h3>HTTP Status Codes</h3>
+        <ul>
+            <li><code>200</code> - Success</li>
+            <li><code>400</code> - Bad Request</li>
+            <li><code>401</code> - Unauthorized</li>
+            <li><code>403</code> - Forbidden</li>
+            <li><code>404</code> - Not Found</li>
+            <li><code>500</code> - Internal Server Error</li>
+        </ul>
+    </div>
+
+    <!-- Rate Limiting -->
+    <div class="card">
+        <h2>Rate Limiting & Best Practices</h2>
+        <ul>
+            <li>Respect Sisense API rate limits</li>
+            <li>Use pagination for large datasets</li>
+            <li>Cache responses when appropriate</li>
+            <li>Use SQL/JAQL query validation before execution</li>
+            <li>Monitor query performance and optimize as needed</li>
+        </ul>
+    </div>
+
+    <!-- Code Examples -->
+    <div class="card">
+        <h2>Code Examples</h2>
+        
+        <h3>JavaScript/Fetch</h3>
+        <div class="code-block">
+            <pre>// With API token authentication, the token is configured server-side
+// You can optionally verify the configuration
+const authResponse = await fetch('/api/auth/validate');
+const { valid } = await authResponse.json();
+
+// Make API calls (token is automatically included by the server)
+const response = await fetch('/api/dashboards');
+const dashboards = await response.json();</pre>
+        </div>
+        
+        <h3>Python/Requests</h3>
+        <div class="code-block">
+            <pre>import requests
+
+# With API token authentication, the token is configured server-side
+# Verify the configuration
+auth_response = requests.get('/api/auth/validate')
+is_valid = auth_response.json()['valid']
+
+# Make API calls (token is automatically included by the server)
+response = requests.get('/api/dashboards')
+dashboards = response.json()</pre>
+        </div>
+        
+        <h3>cURL</h3>
+        <div class="code-block">
+            <pre># Verify API token configuration
+curl -X GET "/api/auth/validate"
+
+# Make API calls (token is automatically included by the server)
+curl -X GET "/api/dashboards"</pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add click-to-copy functionality for code blocks
+document.querySelectorAll('.code-block pre').forEach(block => {
+    block.style.cursor = 'pointer';
+    block.title = 'Click to copy';
+    
+    block.addEventListener('click', () => {
+        copyToClipboard(block.textContent);
+    });
+});
+
+// Add endpoint testing functionality
+document.querySelectorAll('.api-endpoint h3').forEach(header => {
+    const testBtn = document.createElement('button');
+    testBtn.textContent = 'Test';
+    testBtn.className = 'btn btn-sm btn-secondary';
+    testBtn.style.marginLeft = '10px';
+    testBtn.style.fontSize = '0.8rem';
+    
+    testBtn.addEventListener('click', () => {
+        const endpoint = header.textContent.trim();
+        window.sisenseUI.showAlert(`Testing ${endpoint} - Feature coming soon!`, 'info');
+    });
+    
+    header.appendChild(testBtn);
+});
+</script>
+
+<style>
+.api-endpoint {
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.api-endpoint h3 {
+    margin: 0 0 0.5rem 0;
+    color: #667eea;
+    font-family: 'Courier New', monospace;
+    font-size: 1.1rem;
+}
+
+.api-endpoint p {
+    margin: 0 0 1rem 0;
+    color: #6c757d;
+}
+
+.api-details {
+    background: #f8f9fa;
+    border-radius: 4px;
+    padding: 1rem;
+}
+
+.api-details h4 {
+    margin: 0 0 0.5rem 0;
+    color: #495057;
+    font-size: 1rem;
+}
+
+.api-details ul {
+    margin: 0 0 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.api-details li {
+    margin-bottom: 0.25rem;
+}
+
+.api-details li code {
+    background: #e9ecef;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.9rem;
+}
+
+.code-block {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.code-block pre {
+    margin: 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: #495057;
+}
+
+.code-block:hover {
+    background: #f1f3f4;
+}
+
+.code-block:hover::after {
+    content: 'Click to copy';
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: #495057;
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+code {
+    background: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}
