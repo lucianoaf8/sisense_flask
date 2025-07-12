@@ -38,39 +38,14 @@ def execute_sql(
     Raises:
         SisenseAPIError: If request fails or query is invalid.
     """
-    http_client = get_http_client()
-    headers = get_auth_headers()
+    logger.error(f"Cannot execute SQL query on datasource {datasource}: SQL functionality not available")
+    logger.error("Endpoint /api/v1/datasources returns 404 in this Sisense environment")
     
-    params = {
-        'query': query
-    }
-    
-    if limit is not None:
-        params['limit'] = str(limit)
-    if offset is not None:
-        params['offset'] = str(offset)
-    
-    logger.info(f"Executing SQL query on datasource: {datasource}")
-    logger.debug(f"Query: {query[:100]}...")  # Log first 100 chars only
-    
-    try:
-        # Validate query is read-only
-        if not _is_read_only_query(query):
-            raise SisenseAPIError("Only read-only SELECT queries are allowed")
-        
-        response = http_client.get(
-            endpoint=f'/api/datasources/{datasource}/sql',
-            headers=headers,
-            params=params,
-            timeout=timeout
-        )
-        
-        logger.info(f"SQL query executed successfully on datasource {datasource}")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Failed to execute SQL query on datasource {datasource}: {str(e)}")
-        raise SisenseAPIError(f"Failed to execute SQL query: {str(e)}")
+    raise SisenseAPIError(
+        f"Cannot execute SQL query on datasource {datasource}. SQL functionality is not available "
+        "in this Sisense environment. The /api/v1/datasources endpoint returns 404. "
+        "Please check your Sisense installation or API version, or use JAQL queries instead."
+    )
 
 
 def validate_sql_query(query: str) -> Dict[str, Any]:

@@ -16,7 +16,7 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
 from urllib3.util.retry import Retry
 
-from config import Config
+from sisense.config import Config
 
 
 class SisenseAPIError(Exception):

@@ -14,7 +14,6 @@ from . import sql
 from . import jaql
 from . import utils
 from . import logger
-from . import enhanced_auth
 
 __version__ = '2.0.0'
 __all__ = [
@@ -26,6 +25,5 @@ __all__ = [
     'sql',
     'jaql',
     'utils',
-    'logger',
-    'enhanced_auth'
+    'logger'
 ]

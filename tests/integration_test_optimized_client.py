@@ -15,7 +15,7 @@ from typing import Dict, Any, List
 try:
     from sisense.optimized_http_client import get_optimized_http_client
     from sisense.utils import SisenseHTTPClient, SisenseAPIError
-    from config import Config
+    from sisense.config import Config
     optimized_available = True
 except ImportError as e:
     print(f"Warning: Could not import clients: {e}")

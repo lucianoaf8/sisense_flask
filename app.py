@@ -15,10 +15,10 @@ from flask import Flask, request, jsonify, make_response, render_template, flash
 from werkzeug.exceptions import HTTPException
 import traceback
 
-from config import Config
+from sisense.config import Config
 from sisense import (
     auth, datamodels, connections, dashboards, 
-    widgets, sql, jaql, utils, logger as sisense_logger_module, enhanced_auth
+    widgets, sql, jaql, utils, logger as sisense_logger_module
 )
 
 
@@ -83,10 +83,15 @@ def create_app():
     # Health check endpoint
     @app.route('/health', methods=['GET'])
     def health_check():
-        """Enhanced health check endpoint with connection details."""
+        """Health check endpoint."""
         try:
-            health = enhanced_auth.get_connection_health()
-            return jsonify(health)
+            is_valid = auth.validate_authentication()
+            return jsonify({
+                'overall_status': 'healthy' if is_valid else 'unhealthy',
+                'authentication_valid': is_valid,
+                'timestamp': time.time(),
+                'sisense_url': Config.SISENSE_URL
+            })
         except Exception as e:
             app_logger.error(f"Health check failed: {e}")
             return jsonify({
@@ -111,14 +116,13 @@ def create_app():
     
     @app.route('/api/auth/validate', methods=['GET'])
     def validate_auth():
-        """Enhanced authentication validation with detailed status."""
+        """Authentication validation."""
         try:
-            is_valid, message = enhanced_auth.validate_authentication()
+            is_valid = auth.validate_authentication()
             return jsonify({
                 'valid': is_valid,
-                'message': message,
-                'timestamp': time.time(),
-                'user_info': enhanced_auth.get_user_info() if is_valid else None
+                'message': 'Authentication is valid' if is_valid else 'Authentication failed',
+                'timestamp': time.time()
             })
         except Exception as e:
             app_logger.error(f"Auth validation failed: {e}")
@@ -130,10 +134,15 @@ def create_app():
     
     @app.route('/api/auth/status', methods=['GET'])
     def auth_status():
-        """Get comprehensive authentication status."""
+        """Get authentication status."""
         try:
-            status = enhanced_auth.get_enhanced_auth_status()
-            return jsonify(status)
+            is_valid = auth.validate_authentication()
+            return jsonify({
+                'authenticated': is_valid,
+                'auth_method': 'api_token',
+                'sisense_url': Config.SISENSE_URL,
+                'timestamp': time.time()
+            })
         except Exception as e:
             app_logger.error(f"Auth status failed: {e}")
             return jsonify({'error': str(e)}), 500
@@ -142,9 +151,13 @@ def create_app():
     def user_info():
         """Get current user information."""
         try:
-            user_data = enhanced_auth.get_user_info()
+            # With API token authentication, we don't have user info
+            # Return a placeholder response
             return jsonify({
-                'user': user_data,
+                'user': {
+                    'authenticated': auth.validate_authentication(),
+                    'auth_method': 'api_token'
+                },
                 'timestamp': time.time()
             })
         except Exception as e:
@@ -156,7 +169,24 @@ def create_app():
     def test_endpoints():
         """Test various API endpoints for functionality."""
         try:
-            results = enhanced_auth.test_api_endpoints()
+            # Test basic endpoints we know work
+            results = {
+                'dashboards': False,
+                'connections': False
+            }
+            
+            try:
+                dashboards_list = dashboards.list_dashboards()
+                results['dashboards'] = len(dashboards_list) > 0
+            except:
+                pass
+                
+            try:
+                connections_list = connections.list_connections()
+                results['connections'] = len(connections_list) > 0
+            except:
+                pass
+                
             return jsonify(results)
         except Exception as e:
             app_logger.error(f"Endpoint testing failed: {e}")

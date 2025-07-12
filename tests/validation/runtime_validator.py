@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
 
-from config import Config
+from sisense.config import Config
 from sisense.env_config import get_environment_config
 
 

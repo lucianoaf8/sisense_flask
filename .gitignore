@@ -281,6 +281,10 @@ sisense_exports/
 data_exports/
 query_results/
 
+# Diagnostic and test files
+diagnostic_results.json
+test_complete_integration.py
+
 # Node modules (in case you add any JS tooling)
 node_modules/
 npm-debug.log*

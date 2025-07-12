@@ -27,7 +27,7 @@ from requests.exceptions import RequestException
 from urllib3.util.retry import Retry
 from urllib3.poolmanager import PoolManager
 
-from config import Config
+from sisense.config import Config
 from sisense.utils import SisenseAPIError
 from sisense.env_config import get_environment_config
 

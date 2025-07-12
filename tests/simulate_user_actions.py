@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 try:
     from sisense.optimized_http_client import get_optimized_http_client
     from sisense.utils import SisenseAPIError
-    from config import Config
+    from sisense.config import Config
     optimized_available = True
 except ImportError as e:
     print(f"Warning: Could not import optimized client: {e}")

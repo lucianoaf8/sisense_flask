@@ -28,7 +28,7 @@ except ImportError as e:
     print(f"Warning: Could not import optimized client: {e}")
     optimized_available = False
 
-from config import Config
+from sisense.config import Config
 
 
 class HTTPClientPerformanceTester:

@@ -14,7 +14,7 @@ from pathlib import Path
 class SisenseFlaskTester:
     def __init__(self):
         self.base_url = "http://localhost:5000"
-        self.project_root = Path("C:/Projects/sisense_flask")
+        self.project_root = Path(__file__).parent.parent  # Use relative path from test location
         self.test_results = []
         
     def run_all_tests(self):
@@ -57,9 +57,10 @@ class SisenseFlaskTester:
         
         required_files = [
             "app.py",
-            "config.py",
+            "sisense/config.py",
             "requirements.txt",
             "sisense/__init__.py",
+            "sisense/auth.py",
             "sisense/logger.py",
             "templates/base.html",
             "templates/dashboard.html",
@@ -91,7 +92,7 @@ class SisenseFlaskTester:
         try:
             import flask
             import requests
-            import python_dotenv
+            import dotenv
             print("✅ Core dependencies installed")
             self.test_results.append(("Dependencies", True, "All dependencies available"))
         except ImportError as e:
@@ -141,7 +142,7 @@ class SisenseFlaskTester:
         
         routes = [
             "/",
-            "/data-models", 
+            "/datamodels", 
             "/dashboards",
             "/connections",
             "/sql",

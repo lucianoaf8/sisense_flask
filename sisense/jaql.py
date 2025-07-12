@@ -36,32 +36,14 @@ def execute_jaql(
     Raises:
         SisenseAPIError: If request fails.
     """
-    http_client = get_http_client()
-    headers = get_auth_headers()
+    logger.error(f"Cannot execute JAQL query on datasource {datasource}: JAQL functionality not available")
+    logger.error("Endpoint /api/v1/datasources returns 404 in this Sisense environment")
     
-    # Prepare request payload
-    payload = {
-        'jaql': jaql_query,
-        'format': format_type
-    }
-    
-    logger.info(f"Executing JAQL query on datasource: {datasource}")
-    logger.debug(f"JAQL query: {jaql_query}")
-    
-    try:
-        response = http_client.post(
-            endpoint=f'/api/datasources/{datasource}/jaql',
-            headers=headers,
-            json=payload,
-            timeout=timeout
-        )
-        
-        logger.info(f"JAQL query executed successfully on datasource {datasource}")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Failed to execute JAQL query on datasource {datasource}: {str(e)}")
-        raise SisenseAPIError(f"Failed to execute JAQL query: {str(e)}")
+    raise SisenseAPIError(
+        f"Cannot execute JAQL query on datasource {datasource}. JAQL functionality is not available "
+        "in this Sisense environment. The /api/v1/datasources endpoint returns 404. "
+        "Please check your Sisense installation or API version, or use widget-based queries instead."
+    )
 
 
 def get_jaql_metadata(datasource: str, table_name: Optional[str] = None) -> Dict[str, Any]:
@@ -78,28 +60,14 @@ def get_jaql_metadata(datasource: str, table_name: Optional[str] = None) -> Dict
     Raises:
         SisenseAPIError: If request fails.
     """
-    http_client = get_http_client()
-    headers = get_auth_headers()
+    logger.error(f"Cannot get JAQL metadata for datasource {datasource}: JAQL functionality not available")
+    logger.error("Endpoint /api/v1/datasources returns 404 in this Sisense environment")
     
-    params = {}
-    if table_name:
-        params['table'] = table_name
-    
-    logger.info(f"Getting JAQL metadata for datasource: {datasource}, table: {table_name}")
-    
-    try:
-        response = http_client.get(
-            endpoint=f'/api/datasources/{datasource}/jaql/metadata',
-            headers=headers,
-            params=params
-        )
-        
-        logger.info(f"Retrieved JAQL metadata for datasource {datasource}")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Failed to get JAQL metadata for datasource {datasource}: {str(e)}")
-        raise SisenseAPIError(f"Failed to get JAQL metadata: {str(e)}")
+    raise SisenseAPIError(
+        f"Cannot get JAQL metadata for datasource {datasource}. JAQL functionality is not available "
+        "in this Sisense environment. The /api/v1/datasources endpoint returns 404. "
+        "Please check your Sisense installation or API version."
+    )
 
 
 def build_jaql_query(

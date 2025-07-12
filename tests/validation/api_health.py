@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Any
 from enum import Enum
 import requests
 
-from config import Config
+from sisense.config import Config
 from sisense.env_config import get_environment_config
 from sisense.auth import get_auth_headers
 

@@ -8,7 +8,7 @@ including listing connections and getting connection details.
 import logging
 from typing import Dict, List, Optional, Any
 
-from config import Config
+from sisense.config import Config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client, SisenseAPIError, validate_response_data
 

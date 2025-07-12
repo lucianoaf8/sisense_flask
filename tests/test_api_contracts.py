@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Union, Tuple
 from enum import Enum
 
-from config import Config
+from sisense.config import Config
 from sisense.env_config import get_environment_config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client

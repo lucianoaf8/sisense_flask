@@ -13,7 +13,7 @@ from typing import Dict, Any
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import Config
+from sisense.config import Config
 from sisense.env_config import get_environment_config, SisenseEnvironmentConfig
 from sisense.utils import get_http_client
 

@@ -18,7 +18,7 @@ import requests
 from pathlib import Path
 
 # Import our configuration and utilities
-from config import Config
+from sisense.config import Config
 from sisense.env_config import get_environment_config
 from sisense.auth import get_auth_headers
 

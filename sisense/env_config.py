@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 import requests
-from config import Config
+from sisense.config import Config
 
 
 class DeploymentType(Enum):

@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 
 # Import our validation utilities
-from config import Config
+from sisense.config import Config
 from endpoint_validator import SisenseEndpointValidator
 from api_health import SisenseHealthChecker  
 from test_api_contracts import SisenseAPIContractTester

@@ -8,19 +8,21 @@ listing dashboards, getting dashboard details, and managing widgets.
 import logging
 from typing import Dict, List, Optional, Any
 
-from config import Config
+from sisense.config import Config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client, SisenseAPIError, validate_response_data
-from sisense.env_config import get_environment_config
 
 
 logger = logging.getLogger(__name__)
 
 
 def _get_dashboard_endpoint(endpoint_suffix: str = "") -> str:
-    """Get environment-aware dashboard endpoint."""
-    env_config = get_environment_config()
-    return env_config.get_endpoint_url('dashboards', endpoint_suffix)
+    """Get dashboard endpoint."""
+    # Use the working endpoint from our diagnostics
+    base_endpoint = "/api/v1/dashboards"
+    if endpoint_suffix:
+        return f"{base_endpoint}/{endpoint_suffix}"
+    return base_endpoint
 
 
 def list_dashboards(

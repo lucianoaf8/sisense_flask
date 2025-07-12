@@ -8,12 +8,109 @@ getting widget details, JAQL queries, and styling information.
 import logging
 from typing import Dict, List, Optional, Any
 
-from config import Config
+from sisense.config import Config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client, SisenseAPIError, validate_response_data
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_dashboard_widgets(dashboard_id: str) -> List[Dict[str, Any]]:
+    """
+    Get all widgets for a specific dashboard.
+    
+    Args:
+        dashboard_id: Dashboard ID (OID).
+        
+    Returns:
+        List[Dict]: List of widgets in the dashboard.
+        
+    Raises:
+        SisenseAPIError: If request fails.
+    """
+    http_client = get_http_client()
+    headers = get_auth_headers()
+    
+    endpoint = f"/api/v1/dashboards/{dashboard_id}/widgets"
+    
+    try:
+        response = http_client.get(
+            endpoint=endpoint,
+            headers=headers
+        )
+        
+        # Response should be a list of widgets
+        if isinstance(response, list):
+            widgets = response
+        elif isinstance(response, dict) and 'data' in response:
+            widgets = response['data']
+        else:
+            widgets = [response] if response else []
+        
+        logger.debug(f"Retrieved {len(widgets)} widgets for dashboard {dashboard_id}")
+        return widgets
+        
+    except Exception as e:
+        logger.error(f"Failed to get widgets for dashboard {dashboard_id}: {str(e)}")
+        raise SisenseAPIError(f"Failed to get widgets for dashboard {dashboard_id}: {str(e)}")
+
+
+def list_widgets() -> List[Dict[str, Any]]:
+    """
+    List all widgets across all accessible dashboards.
+    
+    Returns:
+        List[Dict]: List of all widgets with dashboard context.
+    """
+    if Config.DEMO_MODE:
+        return [
+            {
+                "oid": "demo-widget-1",
+                "title": "Demo Chart Widget",
+                "type": "chart",
+                "dashboard_id": "demo-dashboard-1"
+            },
+            {
+                "oid": "demo-widget-2", 
+                "title": "Demo Table Widget",
+                "type": "table",
+                "dashboard_id": "demo-dashboard-2"
+            }
+        ]
+    
+    from sisense.dashboards import list_dashboards
+    
+    all_widgets = []
+    logger.info("Collecting widgets from all dashboards")
+    
+    try:
+        dashboards = list_dashboards()
+        
+        for dashboard in dashboards:
+            dashboard_id = dashboard.get('oid')
+            if not dashboard_id:
+                continue
+                
+            try:
+                widgets = get_dashboard_widgets(dashboard_id)
+                
+                # Add dashboard context to each widget
+                for widget in widgets:
+                    widget['dashboard_id'] = dashboard_id
+                    widget['dashboard_title'] = dashboard.get('title', 'Unknown')
+                    all_widgets.append(widget)
+                    
+            except Exception as e:
+                logger.debug(f"Failed to get widgets for dashboard {dashboard_id}: {e}")
+                continue
+        
+        logger.info(f"Retrieved {len(all_widgets)} total widgets")
+        return all_widgets
+        
+    except Exception as e:
+        logger.error(f"Failed to list widgets: {str(e)}")
+        raise SisenseAPIError(f"Failed to list widgets: {str(e)}")
 
 
 def get_widget(widget_id: str, fields: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -28,7 +125,7 @@ def get_widget(widget_id: str, fields: Optional[List[str]] = None) -> Dict[str, 
         Dict: Widget structure including JAQL and style information.
         
     Raises:
-        SisenseAPIError: If request fails or widgets endpoint not available.
+        SisenseAPIError: If request fails or widget not found.
     """
     # Demo mode - return sample widget
     if Config.DEMO_MODE:
@@ -45,14 +142,40 @@ def get_widget(widget_id: str, fields: Optional[List[str]] = None) -> Dict[str, 
             "created": "2024-01-01T00:00:00Z"
         }
     
-    logger.error(f"Cannot retrieve widget {widget_id}: Widgets functionality not available")
-    logger.error("Endpoints /api/v1/widgets and /api/widgets return 404/410 in this Sisense environment")
+    # Since standalone widget endpoints don't work, we need to find the widget 
+    # through its parent dashboard
+    from sisense.dashboards import list_dashboards
     
-    raise SisenseAPIError(
-        f"Cannot retrieve widget {widget_id}. Widgets functionality is not available "
-        "in this Sisense environment. The /api/v1/widgets endpoint returns 404 and "
-        "/api/widgets is deprecated (410). Please check your Sisense installation."
-    )
+    logger.info(f"Searching for widget {widget_id} across all dashboards")
+    
+    try:
+        dashboards = list_dashboards()
+        
+        for dashboard in dashboards:
+            dashboard_id = dashboard.get('oid')
+            if not dashboard_id:
+                continue
+                
+            try:
+                # Try to get widgets for this dashboard
+                widgets = get_dashboard_widgets(dashboard_id)
+                
+                # Look for our widget in this dashboard
+                for widget in widgets:
+                    if widget.get('oid') == widget_id or widget.get('_id') == widget_id:
+                        logger.info(f"Found widget {widget_id} in dashboard {dashboard_id}")
+                        return widget
+                        
+            except Exception as e:
+                logger.debug(f"Failed to get widgets for dashboard {dashboard_id}: {e}")
+                continue
+        
+        # Widget not found in any dashboard
+        raise SisenseAPIError(f"Widget {widget_id} not found in any accessible dashboard")
+        
+    except Exception as e:
+        logger.error(f"Failed to find widget {widget_id}: {str(e)}")
+        raise SisenseAPIError(f"Failed to find widget {widget_id}: {str(e)}")
 
 
 def get_widget_jaql(widget_id: str) -> Dict[str, Any]:
