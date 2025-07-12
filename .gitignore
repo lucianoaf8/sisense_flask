@@ -251,13 +251,12 @@ cache/
 *.cer
 
 # Test files
-test_*.py
-tests/
 .test_env
 
 # Documentation build files
 docs/_build/
-docs/build/
+ocs/build/
+docs
 
 # Coverage reports
 htmlcov/
@@ -312,3 +311,5 @@ credentials.json
 # Docker (if used)
 docker-compose.override.yml
 .dockerignore
+
+CLAUDE.md

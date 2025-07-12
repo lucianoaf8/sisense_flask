@@ -27,7 +27,7 @@ def list_models(model_type: Optional[str] = None) -> List[Dict[str, Any]]:
         List[Dict]: List of data model metadata.
         
     Raises:
-        SisenseAPIError: If request fails.
+        SisenseAPIError: If request fails or data models endpoint not available.
     """
     # Demo mode - return sample data
     if Config.DEMO_MODE:
@@ -49,56 +49,17 @@ def list_models(model_type: Optional[str] = None) -> List[Dict[str, Any]]:
                 "lastPublish": "2024-01-16T10:00:00Z"
             }
         ]
-    http_client = get_http_client()
-    headers = get_auth_headers()
     
-    params = {}
-    if model_type:
-        params['type'] = model_type
+    # Data models endpoints are not available in this Sisense environment
+    # Based on endpoint validation: /api/v2/datamodels, /api/v1/elasticubes, /api/elasticubes all return 404
+    logger.error("Data models functionality is not available in this Sisense environment")
+    logger.error("Endpoints /api/v2/datamodels, /api/v1/elasticubes, /api/elasticubes all return 404")
     
-    logger.info(f"Listing data models with type filter: {model_type}")
-    
-    # Try different API endpoints for data models
-    endpoints = [
-        '/api/v2/datamodels',
-        '/api/v1/elasticubes',
-        '/api/elasticubes'
-    ]
-    
-    response = None
-    last_error = None
-    
-    for endpoint in endpoints:
-        try:
-            response = http_client.get(
-                endpoint=endpoint,
-                headers=headers,
-                params=params
-            )
-            break
-        except Exception as e:
-            last_error = e
-            continue
-    
-    if response is None:
-        raise last_error or SisenseAPIError("No working data models endpoint found")
-    
-    try:
-        
-        # Validate response structure
-        if isinstance(response, list):
-            models = response
-        elif isinstance(response, dict) and 'data' in response:
-            models = response['data']
-        else:
-            models = [response] if response else []
-        
-        logger.info(f"Retrieved {len(models)} data models")
-        return models
-        
-    except Exception as e:
-        logger.error(f"Failed to list data models: {str(e)}")
-        raise SisenseAPIError(f"Failed to list data models: {str(e)}")
+    raise SisenseAPIError(
+        "Data models functionality is not available in this Sisense environment. "
+        "The required API endpoints (/api/v2/datamodels, /api/v1/elasticubes, /api/elasticubes) "
+        "are not accessible. Please check your Sisense installation or API version."
+    )
 
 
 def get_model(model_oid: str) -> Dict[str, Any]:
@@ -112,29 +73,26 @@ def get_model(model_oid: str) -> Dict[str, Any]:
         Dict: Data model structure with masked sensitive data.
         
     Raises:
-        SisenseAPIError: If request fails.
+        SisenseAPIError: If request fails or data models endpoint not available.
     """
-    http_client = get_http_client()
-    headers = get_auth_headers()
+    # Demo mode - return sample model
+    if Config.DEMO_MODE:
+        return {
+            "oid": model_oid,
+            "title": f"Demo Model {model_oid}",
+            "type": "demo",
+            "description": "Demo data model for testing",
+            "tables": [],
+            "created": "2024-01-01T00:00:00Z"
+        }
     
-    logger.info(f"Getting data model: {model_oid}")
+    logger.error(f"Cannot retrieve data model {model_oid}: Data models functionality not available")
+    logger.error("Endpoint /api/v2/datamodels/{model_oid} returns 404 in this Sisense environment")
     
-    try:
-        response = http_client.get(
-            endpoint=f'/api/v2/datamodels/{model_oid}',
-            headers=headers
-        )
-        
-        # Validate required fields
-        required_fields = ['oid', 'title']
-        validate_response_data(response, required_fields)
-        
-        logger.info(f"Retrieved data model: {response.get('title', 'Unknown')}")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Failed to get data model {model_oid}: {str(e)}")
-        raise SisenseAPIError(f"Failed to get data model {model_oid}: {str(e)}")
+    raise SisenseAPIError(
+        f"Cannot retrieve data model {model_oid}. Data models functionality is not available "
+        "in this Sisense environment. The /api/v2/datamodels endpoint is not accessible."
+    )
 
 
 def export_schema(
@@ -158,38 +116,28 @@ def export_schema(
         Dict: Complete data model schema.
         
     Raises:
-        SisenseAPIError: If request fails.
+        SisenseAPIError: If request fails or data models endpoint not available.
     """
-    http_client = get_http_client()
-    headers = get_auth_headers()
+    # Demo mode - return sample schema
+    if Config.DEMO_MODE:
+        return {
+            "schemas": [{
+                "oid": model_oid or "demo-schema",
+                "title": "Demo Schema",
+                "tables": [],
+                "relationships": [],
+                "exported": "2024-01-01T00:00:00Z"
+            }]
+        }
     
-    params = {}
-    if model_oid:
-        params['datamodel'] = model_oid
-    if unmasked:
-        params['unmasked'] = 'true'
-    if not include_relationships:
-        params['includeRelationships'] = 'false'
-    if not include_tables:
-        params['includeTables'] = 'false'
-    if not include_columns:
-        params['includeColumns'] = 'false'
+    logger.error(f"Cannot export schema for model {model_oid}: Data models functionality not available")
+    logger.error("Endpoint /api/v2/datamodel-exports/schema is likely not accessible")
     
-    logger.info(f"Exporting schema for model: {model_oid or 'all'}")
-    
-    try:
-        response = http_client.get(
-            endpoint='/api/v2/datamodel-exports/schema',
-            headers=headers,
-            params=params
-        )
-        
-        logger.info("Schema export completed successfully")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Failed to export schema: {str(e)}")
-        raise SisenseAPIError(f"Failed to export schema: {str(e)}")
+    raise SisenseAPIError(
+        f"Cannot export schema for model {model_oid or 'all'}. Data models functionality "
+        "is not available in this Sisense environment. The /api/v2/datamodel-exports/schema "
+        "endpoint is not accessible."
+    )
 
 
 def get_model_tables(model_oid: str) -> List[Dict[str, Any]]:

@@ -11,9 +11,16 @@ from typing import Dict, List, Optional, Any
 from config import Config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client, SisenseAPIError, validate_response_data
+from sisense.env_config import get_environment_config
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_dashboard_endpoint(endpoint_suffix: str = "") -> str:
+    """Get environment-aware dashboard endpoint."""
+    env_config = get_environment_config()
+    return env_config.get_endpoint_url('dashboards', endpoint_suffix)
 
 
 def list_dashboards(
@@ -63,8 +70,9 @@ def list_dashboards(
     logger.info(f"Listing dashboards with owner: {owner}, shared: {shared}")
     
     try:
+        endpoint = _get_dashboard_endpoint()
         response = http_client.get(
-            endpoint='/api/v1/dashboards',
+            endpoint=endpoint,
             headers=headers,
             params=params
         )
@@ -109,8 +117,9 @@ def get_dashboard(dashboard_id: str, fields: Optional[List[str]] = None) -> Dict
     logger.info(f"Getting dashboard: {dashboard_id}")
     
     try:
+        endpoint = _get_dashboard_endpoint(dashboard_id)
         response = http_client.get(
-            endpoint=f'/api/v1/dashboards/{dashboard_id}',
+            endpoint=endpoint,
             headers=headers,
             params=params
         )

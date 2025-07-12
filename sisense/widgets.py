@@ -8,6 +8,7 @@ getting widget details, JAQL queries, and styling information.
 import logging
 from typing import Dict, List, Optional, Any
 
+from config import Config
 from sisense.auth import get_auth_headers
 from sisense.utils import get_http_client, SisenseAPIError, validate_response_data
 
@@ -27,34 +28,31 @@ def get_widget(widget_id: str, fields: Optional[List[str]] = None) -> Dict[str, 
         Dict: Widget structure including JAQL and style information.
         
     Raises:
-        SisenseAPIError: If request fails.
+        SisenseAPIError: If request fails or widgets endpoint not available.
     """
-    http_client = get_http_client()
-    headers = get_auth_headers()
+    # Demo mode - return sample widget
+    if Config.DEMO_MODE:
+        return {
+            "oid": widget_id,
+            "title": f"Demo Widget {widget_id}",
+            "type": "chart",
+            "subtype": "column",
+            "desc": "Demo widget for testing",
+            "metadata": {
+                "jaql": {"datasource": "demo"}
+            },
+            "style": {},
+            "created": "2024-01-01T00:00:00Z"
+        }
     
-    params = {}
-    if fields:
-        params['fields'] = ','.join(fields)
+    logger.error(f"Cannot retrieve widget {widget_id}: Widgets functionality not available")
+    logger.error("Endpoints /api/v1/widgets and /api/widgets return 404/410 in this Sisense environment")
     
-    logger.info(f"Getting widget: {widget_id}")
-    
-    try:
-        response = http_client.get(
-            endpoint=f'/api/v1/widgets/{widget_id}',
-            headers=headers,
-            params=params
-        )
-        
-        # Validate required fields
-        required_fields = ['oid', 'title', 'type']
-        validate_response_data(response, required_fields)
-        
-        logger.info(f"Retrieved widget: {response.get('title', 'Unknown')}")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Failed to get widget {widget_id}: {str(e)}")
-        raise SisenseAPIError(f"Failed to get widget {widget_id}: {str(e)}")
+    raise SisenseAPIError(
+        f"Cannot retrieve widget {widget_id}. Widgets functionality is not available "
+        "in this Sisense environment. The /api/v1/widgets endpoint returns 404 and "
+        "/api/widgets is deprecated (410). Please check your Sisense installation."
+    )
 
 
 def get_widget_jaql(widget_id: str) -> Dict[str, Any]:
@@ -135,36 +133,30 @@ def get_widget_data(widget_id: str, filters: Optional[List[Dict]] = None) -> Dic
         Dict: Widget data results.
         
     Raises:
-        SisenseAPIError: If request fails.
+        SisenseAPIError: If request fails or widgets endpoint not available.
     """
-    http_client = get_http_client()
-    headers = get_auth_headers()
+    # Demo mode - return sample data
+    if Config.DEMO_MODE:
+        return {
+            "headers": ["Category", "Sales", "Profit"],
+            "values": [
+                ["Product A", 1000, 200],
+                ["Product B", 1500, 300],
+                ["Product C", 800, 150]
+            ],
+            "metadata": {
+                "widget_id": widget_id,
+                "filters_applied": len(filters) if filters else 0
+            }
+        }
     
-    logger.info(f"Getting data for widget: {widget_id}")
+    logger.error(f"Cannot get data for widget {widget_id}: Widgets functionality not available")
+    logger.error("Widget data endpoint /api/v1/widgets/{widget_id}/data not accessible")
     
-    try:
-        # Get widget JAQL
-        jaql = get_widget_jaql(widget_id)
-        
-        # Apply filters if provided
-        if filters:
-            if 'filters' not in jaql:
-                jaql['filters'] = []
-            jaql['filters'].extend(filters)
-        
-        # Execute JAQL query
-        response = http_client.post(
-            endpoint=f'/api/v1/widgets/{widget_id}/data',
-            headers=headers,
-            json=jaql
-        )
-        
-        logger.info(f"Retrieved data for widget {widget_id}")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Failed to get data for widget {widget_id}: {str(e)}")
-        raise SisenseAPIError(f"Failed to get data for widget {widget_id}: {str(e)}")
+    raise SisenseAPIError(
+        f"Cannot get data for widget {widget_id}. Widgets functionality is not available "
+        "in this Sisense environment. The /api/v1/widgets endpoints are not accessible."
+    )
 
 
 def get_widget_metadata(widget_id: str) -> Dict[str, Any]:
