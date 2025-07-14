@@ -28,12 +28,34 @@ def get_auth_headers() -> Dict[str, str]:
     }
 
 def validate_authentication() -> bool:
-    """Validate authentication using working endpoint."""
+    """Validate authentication using correct authentication endpoints."""
     try:
         headers = get_auth_headers()
         base_url = Config.get_sisense_base_url()
         
-        # Use the one endpoint we know works
+        # Use correct authentication validation endpoints with fallback
+        auth_endpoints = [
+            '/api/v1/auth/isauth',    # Primary v1 endpoint
+            '/auth/isauth',           # v0 fallback
+            '/api/v2/auth/isauth'     # v2 if available
+        ]
+        
+        for endpoint in auth_endpoints:
+            try:
+                response = requests.get(
+                    f"{base_url}{endpoint}",
+                    headers=headers,
+                    timeout=Config.REQUEST_TIMEOUT,
+                    verify=Config.SSL_VERIFY
+                )
+                if response.status_code == 200:
+                    logger.debug(f"Authentication validated using {endpoint}")
+                    return True
+            except Exception as e:
+                logger.debug(f"Authentication endpoint {endpoint} failed: {e}")
+                continue
+        
+        # Fallback: validate using working dashboards endpoint
         response = requests.get(
             f"{base_url}/api/v1/dashboards",
             headers=headers,
@@ -41,7 +63,11 @@ def validate_authentication() -> bool:
             verify=Config.SSL_VERIFY
         )
         
-        return response.status_code == 200
+        if response.status_code == 200:
+            logger.debug("Authentication validated using dashboards fallback")
+            return True
+        
+        return False
         
     except Exception as e:
         logger.error(f"Authentication validation failed: {e}")

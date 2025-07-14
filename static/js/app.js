@@ -1,5 +1,112 @@
 // Sisense Flask UI JavaScript v2.0
 
+class SisenseAPIManager {
+    constructor() {
+        this.capabilities = null;
+    }
+
+    async initialize() {
+        // Get API capabilities
+        try {
+            const response = await fetch('/api/system/capabilities');
+            if (response.ok) {
+                const data = await response.json();
+                this.capabilities = data.capabilities;
+                console.log('API capabilities loaded:', this.capabilities);
+            }
+        } catch (error) {
+            console.warn('Failed to load API capabilities:', error);
+            this.capabilities = null;
+        }
+    }
+
+    async loadDataModels() {
+        try {
+            const response = await fetch('/api/datamodels');
+            const data = await response.json();
+
+            if (response.ok) {
+                // Show which API pattern was used
+                if (data.api_pattern) {
+                    this.showAlert(`Loaded ${data.count} data models using ${data.api_pattern}`, 'success');
+                } else {
+                    this.showAlert(`Loaded ${data.count} data models`, 'success');
+                }
+                return data.data;
+            } else {
+                this.showAlert(data.message, 'warning');
+                return [];
+            }
+        } catch (error) {
+            this.showAlert(`Failed to load data models: ${error.message}`, 'error');
+            return [];
+        }
+    }
+
+    async validateAuth() {
+        try {
+            const response = await fetch('/api/auth/validate');
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.auth_pattern) {
+                    this.showAlert(`Authentication validated using ${data.auth_pattern}`, 'success');
+                }
+                return data.valid;
+            } else {
+                this.showAlert(data.message, 'error');
+                return false;
+            }
+        } catch (error) {
+            this.showAlert(`Authentication failed: ${error.message}`, 'error');
+            return false;
+        }
+    }
+
+    async executeQuery(queryType, queryData) {
+        try {
+            let endpoint;
+            if (queryType === 'jaql') {
+                endpoint = '/api/jaql';
+            } else if (queryType === 'sql') {
+                endpoint = '/api/sql';
+            } else {
+                throw new Error(`Unsupported query type: ${queryType}`);
+            }
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(queryData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.showAlert('Query executed successfully', 'success');
+                return data;
+            } else {
+                this.showAlert(data.message, 'error');
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            this.showAlert(`Query failed: ${error.message}`, 'error');
+            throw error;
+        }
+    }
+
+    showAlert(message, type) {
+        // Delegate to main UI class if available
+        if (window.sisenseUI && typeof window.sisenseUI.showAlert === 'function') {
+            window.sisenseUI.showAlert(message, type);
+        } else {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
+}
+
 class SisenseUI {
     constructor() {
         this.baseUrl = '';

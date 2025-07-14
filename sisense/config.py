@@ -52,6 +52,12 @@ class Config:
     SISENSE_DISABLE_LIVE_FEATURES: bool = os.getenv('SISENSE_DISABLE_LIVE_FEATURES', 'False').lower() == 'true'
     SISENSE_DEBUG_MODE: bool = os.getenv('SISENSE_DEBUG_MODE', 'False').lower() == 'true'
     
+    # Smart API detection and routing settings
+    ENABLE_SMART_API_DETECTION: bool = os.getenv('ENABLE_SMART_API_DETECTION', 'True').lower() == 'true'
+    API_CAPABILITY_CACHE_DURATION: int = int(os.getenv('API_CAPABILITY_CACHE_DURATION', '3600'))
+    FORCE_API_VERSION: str = os.getenv('FORCE_API_VERSION', '')  # v0, v1, v2, or empty for auto-detect
+    DISABLE_API_FALLBACK: bool = os.getenv('DISABLE_API_FALLBACK', 'False').lower() == 'true'
+    
     # Demo mode (allows app to run without real Sisense credentials)
     DEMO_MODE: bool = os.getenv('DEMO_MODE', 'False').lower() == 'true'
     

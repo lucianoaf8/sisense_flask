@@ -25,6 +25,9 @@ def execute_sql(
     """
     Execute SQL query against a Sisense data source.
     
+    Direct SQL execution is not supported in this Sisense environment.
+    Consider using JAQL queries instead or extracting queries from existing widgets.
+    
     Args:
         datasource: Data source name or OID.
         query: SQL query string (read-only queries only).
@@ -36,15 +39,14 @@ def execute_sql(
         Dict: Query results including data, columns, and metadata.
         
     Raises:
-        SisenseAPIError: If request fails or query is invalid.
+        SisenseAPIError: SQL execution not supported.
     """
-    logger.error(f"Cannot execute SQL query on datasource {datasource}: SQL functionality not available")
-    logger.error("Endpoint /api/v1/datasources returns 404 in this Sisense environment")
+    logger.error(f"SQL execution attempted on datasource {datasource}: SQL not supported")
     
     raise SisenseAPIError(
-        f"Cannot execute SQL query on datasource {datasource}. SQL functionality is not available "
-        "in this Sisense environment. The /api/v1/datasources endpoint returns 404. "
-        "Please check your Sisense installation or API version, or use JAQL queries instead."
+        "Direct SQL execution not supported in this Sisense environment. "
+        "Use JAQL queries instead or extract queries from existing widgets. "
+        "The unified query endpoint (/api/v1/query) only supports JAQL format."
     )
 
 

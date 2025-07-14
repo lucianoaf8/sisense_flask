@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def get_dashboard_widgets(dashboard_id: str) -> List[Dict[str, Any]]:
     """
-    Get all widgets for a specific dashboard.
+    Get all widgets for a specific dashboard through the dashboard hierarchy.
     
     Args:
         dashboard_id: Dashboard ID (OID).
@@ -29,24 +29,18 @@ def get_dashboard_widgets(dashboard_id: str) -> List[Dict[str, Any]]:
     Raises:
         SisenseAPIError: If request fails.
     """
-    http_client = get_http_client()
-    headers = get_auth_headers()
-    
-    endpoint = f"/api/v1/dashboards/{dashboard_id}/widgets"
+    # Import here to avoid circular imports
+    from sisense.dashboards import get_dashboard
     
     try:
-        response = http_client.get(
-            endpoint=endpoint,
-            headers=headers
-        )
+        # Get full dashboard details which includes widgets
+        dashboard_data = get_dashboard(dashboard_id)
         
-        # Response should be a list of widgets
-        if isinstance(response, list):
-            widgets = response
-        elif isinstance(response, dict) and 'data' in response:
-            widgets = response['data']
-        else:
-            widgets = [response] if response else []
+        # Extract widgets from dashboard data
+        widgets = dashboard_data.get('widgets', [])
+        
+        if not isinstance(widgets, list):
+            widgets = []
         
         logger.debug(f"Retrieved {len(widgets)} widgets for dashboard {dashboard_id}")
         return widgets
@@ -246,7 +240,7 @@ def get_widget_style(widget_id: str) -> Dict[str, Any]:
 
 def get_widget_data(widget_id: str, filters: Optional[List[Dict]] = None) -> Dict[str, Any]:
     """
-    Get data for a specific widget with optional filters.
+    Get data for a specific widget by extracting JAQL and executing via unified query endpoint.
     
     Args:
         widget_id: Widget ID.
@@ -256,7 +250,7 @@ def get_widget_data(widget_id: str, filters: Optional[List[Dict]] = None) -> Dic
         Dict: Widget data results.
         
     Raises:
-        SisenseAPIError: If request fails or widgets endpoint not available.
+        SisenseAPIError: If request fails or widget JAQL cannot be executed.
     """
     # Demo mode - return sample data
     if Config.DEMO_MODE:
@@ -273,13 +267,43 @@ def get_widget_data(widget_id: str, filters: Optional[List[Dict]] = None) -> Dic
             }
         }
     
-    logger.error(f"Cannot get data for widget {widget_id}: Widgets functionality not available")
-    logger.error("Widget data endpoint /api/v1/widgets/{widget_id}/data not accessible")
+    logger.info(f"Getting data for widget {widget_id} via JAQL execution")
     
-    raise SisenseAPIError(
-        f"Cannot get data for widget {widget_id}. Widgets functionality is not available "
-        "in this Sisense environment. The /api/v1/widgets endpoints are not accessible."
-    )
+    try:
+        # Get widget details and extract JAQL
+        widget = get_widget(widget_id)
+        jaql_query = get_widget_jaql(widget_id)
+        
+        if not jaql_query:
+            raise SisenseAPIError(f"No JAQL query found for widget {widget_id}")
+        
+        # Apply additional filters if provided
+        if filters:
+            if 'metadata' not in jaql_query:
+                jaql_query['metadata'] = []
+            
+            for filter_item in filters:
+                jaql_query['metadata'].append({
+                    'jaql': filter_item,
+                    'panel': 'filters'
+                })
+        
+        # Execute JAQL query via unified endpoint
+        from sisense.jaql import execute_jaql
+        
+        # Get datasource from widget or JAQL
+        datasource = widget.get('datasource', {}).get('title') or jaql_query.get('datasource', '')
+        if not datasource:
+            raise SisenseAPIError(f"No datasource found for widget {widget_id}")
+        
+        result = execute_jaql(datasource, jaql_query)
+        
+        logger.info(f"Successfully retrieved data for widget {widget_id}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to get data for widget {widget_id}: {str(e)}")
+        raise SisenseAPIError(f"Failed to get widget data: {str(e)}")
 
 
 def get_widget_metadata(widget_id: str) -> Dict[str, Any]:

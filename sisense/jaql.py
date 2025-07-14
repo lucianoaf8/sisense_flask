@@ -22,7 +22,7 @@ def execute_jaql(
     timeout: Optional[int] = None
 ) -> Dict[str, Any]:
     """
-    Execute JAQL query against a Sisense data source.
+    Execute JAQL query using the unified query endpoint.
     
     Args:
         datasource: Data source name or OID.
@@ -36,14 +36,56 @@ def execute_jaql(
     Raises:
         SisenseAPIError: If request fails.
     """
-    logger.error(f"Cannot execute JAQL query on datasource {datasource}: JAQL functionality not available")
-    logger.error("Endpoint /api/v1/datasources returns 404 in this Sisense environment")
+    from sisense.config import Config
     
-    raise SisenseAPIError(
-        f"Cannot execute JAQL query on datasource {datasource}. JAQL functionality is not available "
-        "in this Sisense environment. The /api/v1/datasources endpoint returns 404. "
-        "Please check your Sisense installation or API version, or use widget-based queries instead."
-    )
+    # Demo mode - return sample data
+    if Config.DEMO_MODE:
+        return {
+            "data": [
+                {"Column1": "Sample Data 1", "Column2": 100},
+                {"Column1": "Sample Data 2", "Column2": 200}
+            ],
+            "metadata": {"total_rows": 2, "columns": ["Column1", "Column2"]},
+            "datasource": datasource
+        }
+    
+    logger.info(f"Executing JAQL query on datasource: {datasource}")
+    
+    try:
+        headers = get_auth_headers()
+        http_client = get_http_client()
+        base_url = Config.get_sisense_base_url()
+        
+        # Prepare the query payload
+        query_payload = jaql_query
+        if isinstance(jaql_query, dict):
+            # If datasource not in query, add it
+            if 'datasource' not in jaql_query:
+                query_payload = jaql_query.copy()
+                query_payload['datasource'] = datasource
+        
+        # Use unified query endpoint
+        endpoint = '/api/v1/query'
+        response = http_client.post(
+            f"{base_url}{endpoint}",
+            headers=headers,
+            json=query_payload,
+            timeout=timeout or Config.REQUEST_TIMEOUT
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            logger.info(f"JAQL query executed successfully for datasource {datasource}")
+            return result
+        else:
+            logger.error(f"JAQL query failed: {response.status_code} - {response.text}")
+            raise SisenseAPIError(f"JAQL query failed: {response.status_code}")
+            
+    except SisenseAPIError:
+        raise
+    except Exception as e:
+        logger.error(f"JAQL query execution failed: {e}")
+        raise SisenseAPIError(f"JAQL functionality not available: {e}")
 
 
 def get_jaql_metadata(datasource: str, table_name: Optional[str] = None) -> Dict[str, Any]:

@@ -20,6 +20,7 @@ from sisense import (
     auth, datamodels, connections, dashboards, 
     widgets, sql, jaql, utils, logger as sisense_logger_module
 )
+from smart_sisense_client import SmartSisenseClient
 
 
 def create_app():
@@ -46,6 +47,17 @@ def create_app():
     except ValueError as e:
         app_logger.error(f"Configuration validation failed: {e}")
         raise
+    
+    # Initialize smart Sisense client
+    smart_client = None
+    if not Config.DEMO_MODE:
+        try:
+            smart_client = SmartSisenseClient(Config.SISENSE_URL, Config.SISENSE_API_TOKEN)
+            app_logger.info("Smart Sisense client initialized successfully")
+        except Exception as e:
+            app_logger.warning(f"Smart client initialization failed, using fallback mode: {e}")
+    else:
+        app_logger.info("Running in demo mode - smart client disabled")
     
     # Global error handlers
     @app.errorhandler(utils.SisenseAPIError)
@@ -116,14 +128,27 @@ def create_app():
     
     @app.route('/api/auth/validate', methods=['GET'])
     def validate_auth():
-        """Authentication validation."""
+        """Authentication validation using smart routing."""
         try:
-            is_valid = auth.validate_authentication()
-            return jsonify({
-                'valid': is_valid,
-                'message': 'Authentication is valid' if is_valid else 'Authentication failed',
-                'timestamp': time.time()
-            })
+            if smart_client:
+                # Use smart client authentication
+                is_valid = smart_client.authenticate()
+                capabilities = smart_client.get_capabilities()
+                return jsonify({
+                    'valid': is_valid,
+                    'message': 'Authentication is valid' if is_valid else 'Authentication failed',
+                    'auth_pattern': capabilities.get('auth_pattern'),
+                    'timestamp': time.time()
+                })
+            else:
+                # Fallback to regular auth
+                is_valid = auth.validate_authentication()
+                return jsonify({
+                    'valid': is_valid,
+                    'message': 'Authentication is valid' if is_valid else 'Authentication failed',
+                    'auth_pattern': 'fallback',
+                    'timestamp': time.time()
+                })
         except Exception as e:
             app_logger.error(f"Auth validation failed: {e}")
             return jsonify({
@@ -192,18 +217,77 @@ def create_app():
             app_logger.error(f"Endpoint testing failed: {e}")
             return jsonify({'error': str(e)}), 500
     
+    @app.route('/api/system/capabilities', methods=['GET'])
+    def system_capabilities():
+        """Get detected API capabilities and patterns."""
+        try:
+            if smart_client:
+                capabilities = smart_client.get_capabilities()
+                summary = smart_client.get_capability_summary()
+                return jsonify({
+                    'capabilities': capabilities,
+                    'summary': summary,
+                    'smart_client_enabled': True,
+                    'timestamp': time.time()
+                })
+            else:
+                return jsonify({
+                    'capabilities': {},
+                    'summary': 'Smart client not available (demo mode or initialization failed)',
+                    'smart_client_enabled': False,
+                    'timestamp': time.time()
+                })
+        except Exception as e:
+            app_logger.error(f"Capabilities endpoint failed: {e}")
+            return jsonify({
+                'error': str(e),
+                'smart_client_enabled': False,
+                'timestamp': time.time()
+            }), 500
+    
     # Data models endpoints (v2)
     @app.route('/api/datamodels', methods=['GET'])
     def list_datamodels():
-        """List all data models."""
+        """List all data models using smart routing."""
         try:
             model_type = request.args.get('type')
-            models = datamodels.list_models(model_type)
-            return jsonify({
-                'data': models,
-                'count': len(models),
-                'type_filter': model_type
-            })
+            
+            if smart_client:
+                # Use smart client with capability detection
+                models = smart_client.list_data_models(model_type)
+                capabilities = smart_client.get_capabilities()
+                
+                # Add information about model types available
+                model_types = {}
+                for model in models:
+                    model_type_found = model.get('type', 'unknown')
+                    if model_type_found not in model_types:
+                        model_types[model_type_found] = 0
+                    model_types[model_type_found] += 1
+                
+                response_data = {
+                    'data': models,
+                    'count': len(models),
+                    'type_filter': model_type,
+                    'api_pattern': capabilities.get('data_model_pattern'),
+                    'available_types': model_types,
+                    'capabilities': capabilities
+                }
+                
+                # Add warning if filtering for live models but none found
+                if model_type == 'live' and len(models) == 0:
+                    response_data['warning'] = 'No live models found. This environment appears to only have ElastiCubes (extract-based models).'
+                
+                return jsonify(response_data)
+            else:
+                # Fallback to regular module
+                models = datamodels.list_models(model_type)
+                return jsonify({
+                    'data': models,
+                    'count': len(models),
+                    'type_filter': model_type,
+                    'api_pattern': 'fallback'
+                })
         except Exception as e:
             app_logger.error(f"Failed to list data models: {e}")
             raise
@@ -272,13 +356,14 @@ def create_app():
     
     # Connections endpoints (v2)
     @app.route('/api/connections', methods=['GET'])
-    def list_connections():
+    def api_list_connections():
         """List all connections."""
         try:
             connection_type = request.args.get('type')
             include_credentials = request.args.get('credentials', 'false').lower() == 'true'
             
-            connection_list = connections.list_connections(connection_type, include_credentials)
+            from sisense import connections as connection_module
+            connection_list = connection_module.list_connections(connection_type, include_credentials)
             return jsonify({
                 'data': connection_list,
                 'count': len(connection_list),
@@ -289,11 +374,12 @@ def create_app():
             raise
     
     @app.route('/api/connections/<connection_id>', methods=['GET'])
-    def get_connection(connection_id):
+    def api_get_connection(connection_id):
         """Get specific connection by ID."""
         try:
             include_credentials = request.args.get('credentials', 'false').lower() == 'true'
-            connection = connections.get_connection(connection_id, include_credentials)
+            from sisense import connections as connection_module
+            connection = connection_module.get_connection(connection_id, include_credentials)
             return jsonify(connection)
         except Exception as e:
             app_logger.error(f"Failed to get connection {connection_id}: {e}")
@@ -311,7 +397,7 @@ def create_app():
     
     # Dashboards endpoints (v1)
     @app.route('/api/dashboards', methods=['GET'])
-    def list_dashboards():
+    def api_list_dashboards():
         """List all dashboards."""
         try:
             owner = request.args.get('owner')
@@ -320,7 +406,8 @@ def create_app():
                 shared = shared.lower() == 'true'
             fields = request.args.getlist('fields')
             
-            dashboard_list = dashboards.list_dashboards(owner, shared, fields)
+            from sisense import dashboards as dashboard_module
+            dashboard_list = dashboard_module.list_dashboards(owner, shared, fields)
             return jsonify({
                 'data': dashboard_list,
                 'count': len(dashboard_list),
@@ -332,11 +419,12 @@ def create_app():
             raise
     
     @app.route('/api/dashboards/<dashboard_id>', methods=['GET'])
-    def get_dashboard(dashboard_id):
+    def api_get_dashboard(dashboard_id):
         """Get specific dashboard by ID."""
         try:
             fields = request.args.getlist('fields')
-            dashboard = dashboards.get_dashboard(dashboard_id, fields)
+            from sisense import dashboards as dashboard_module
+            dashboard = dashboard_module.get_dashboard(dashboard_id, fields)
             return jsonify(dashboard)
         except Exception as e:
             app_logger.error(f"Failed to get dashboard {dashboard_id}: {e}")

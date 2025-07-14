@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def list_models(model_type: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    List all data models with optional type filtering.
+    List all data models with optional type filtering using correct endpoints with fallback.
     
     Args:
         model_type: Optional model type filter (e.g., 'live', 'extract').
@@ -50,15 +50,52 @@ def list_models(model_type: Optional[str] = None) -> List[Dict[str, Any]]:
             }
         ]
     
-    # Data models endpoints are not available in this Sisense environment
-    # Based on endpoint validation: /api/v2/datamodels, /api/v1/elasticubes, /api/elasticubes all return 404
+    headers = get_auth_headers()
+    http_client = get_http_client()
+    base_url = Config.get_sisense_base_url()
+    
+    # Try v2 first (Linux deployments)
+    try:
+        logger.debug("Attempting v2 datamodels endpoint")
+        response = http_client.get(f"{base_url}/api/v2/datamodels", headers=headers)
+        if response.status_code == 200:
+            data = response.json().get('data', [])
+            logger.info(f"Retrieved {len(data)} data models using v2 API")
+            return _filter_models(data, model_type)
+    except Exception as e:
+        logger.debug(f"v2 datamodels endpoint failed: {e}")
+    
+    # Fall back to v1 with correct path
+    try:
+        logger.debug("Attempting v1 elasticubes endpoint with getElasticubes")
+        response = http_client.get(f"{base_url}/api/v1/elasticubes/getElasticubes", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list):
+                logger.info(f"Retrieved {len(data)} data models using v1 API")
+                return _filter_models(data, model_type)
+    except Exception as e:
+        logger.debug(f"v1 elasticubes endpoint failed: {e}")
+    
+    # Fall back to v0 legacy
+    try:
+        logger.debug("Attempting v0 elasticubes endpoint with getElasticubes")
+        response = http_client.get(f"{base_url}/elasticubes/getElasticubes", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list):
+                logger.info(f"Retrieved {len(data)} data models using v0 API")
+                return _filter_models(data, model_type)
+    except Exception as e:
+        logger.debug(f"v0 elasticubes endpoint failed: {e}")
+    
+    # All endpoints failed
     logger.error("Data models functionality is not available in this Sisense environment")
-    logger.error("Endpoints /api/v2/datamodels, /api/v1/elasticubes, /api/elasticubes all return 404")
+    logger.error("All data model endpoints failed: /api/v2/datamodels, /api/v1/elasticubes/getElasticubes, /elasticubes/getElasticubes")
     
     raise SisenseAPIError(
-        "Data models functionality is not available in this Sisense environment. "
-        "The required API endpoints (/api/v2/datamodels, /api/v1/elasticubes, /api/elasticubes) "
-        "are not accessible. Please check your Sisense installation or API version."
+        "Data models functionality not available in this environment. "
+        "Tried /api/v2/datamodels, /api/v1/elasticubes/getElasticubes, and /elasticubes/getElasticubes endpoints."
     )
 
 
@@ -247,3 +284,29 @@ def search_models(search_term: str) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Failed to search models: {str(e)}")
         raise SisenseAPIError(f"Failed to search models: {str(e)}")
+
+
+def _filter_models(models: List[Dict], model_type: Optional[str]) -> List[Dict]:
+    """
+    Filter models by type if specified.
+    
+    Args:
+        models: List of model dictionaries
+        model_type: Optional model type filter
+        
+    Returns:
+        Filtered list of models
+    """
+    if not model_type:
+        return models
+        
+    # Filter based on model type
+    filtered = []
+    for model in models:
+        # Check various possible type fields
+        if (model.get('type') == model_type or 
+            model.get('subtype') == model_type or
+            model_type.lower() in model.get('title', '').lower()):
+            filtered.append(model)
+    
+    return filtered
