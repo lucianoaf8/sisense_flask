@@ -1,0 +1,142 @@
+{
+  "summary": {
+    "total_tests": 17,
+    "passed": 6,
+    "failed": 11,
+    "success_rate": "35.3%",
+    "duration_seconds": 88.742042,
+    "timestamp": "2025-07-15T06:30:20.348856"
+  },
+  "results": [
+    {
+      "test_name": "CLI Authentication",
+      "success": true,
+      "message": "Authentication validated successfully",
+      "timestamp": "2025-07-15T06:28:52.967660",
+      "details": {}
+    },
+    {
+      "test_name": "CLI Auth Headers",
+      "success": true,
+      "message": "Headers retrieved with token preview: Bearer eyJhbGciOiJIUzI1NiIsInR...",
+      "timestamp": "2025-07-15T06:28:52.967796",
+      "details": {}
+    },
+    {
+      "test_name": "CLI List Models",
+      "success": false,
+      "message": "Error listing models: Data models functionality not available in this environment. Tried /api/v2/datamodels, /api/v1/elasticubes/getElasticubes, and /elasticubes/getElasticubes endpoints.",
+      "timestamp": "2025-07-15T06:29:02.455392",
+      "details": {}
+    },
+    {
+      "test_name": "CLI List Dashboards",
+      "success": true,
+      "message": "Retrieved 476 dashboards",
+      "timestamp": "2025-07-15T06:29:03.066699",
+      "details": {
+        "count": 476
+      }
+    },
+    {
+      "test_name": "CLI Get Dashboard",
+      "success": true,
+      "message": "Retrieved dashboard: Southern Power Company - Contractor Status Report",
+      "timestamp": "2025-07-15T06:29:03.141350",
+      "details": {}
+    },
+    {
+      "test_name": "CLI List Connections",
+      "success": true,
+      "message": "Retrieved 155 connections",
+      "timestamp": "2025-07-15T06:29:03.240735",
+      "details": {
+        "count": 155
+      }
+    },
+    {
+      "test_name": "CLI List Widgets",
+      "success": true,
+      "message": "Retrieved 0 widgets",
+      "timestamp": "2025-07-15T06:29:39.568194",
+      "details": {
+        "count": 0
+      }
+    },
+    {
+      "test_name": "Flask Health Check",
+      "success": false,
+      "message": "Health endpoint error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2C69A90>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:29:43.630083",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/auth/validate",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/auth/validate (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2CDA350>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:29:47.703076",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/auth/status",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/auth/status (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2CDA0D0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:29:51.796214",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/auth/user-info",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/auth/user-info (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2C2DA70>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:29:55.874499",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/datamodels",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/datamodels (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2C2DE00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:29:59.946823",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/system/capabilities",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/system/capabilities (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2CEC5F0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:30:04.013790",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/dashboards",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/dashboards (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2CA2AD0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:30:08.082547",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/connections",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/connections (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2CA2E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:30:12.180386",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/search/dashboards",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/search/dashboards (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2CA3020>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:30:16.261630",
+      "details": {}
+    },
+    {
+      "test_name": "Flask /api/search/datamodels",
+      "success": false,
+      "message": "Error: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/search/datamodels (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000016FC2CA3240>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-15T06:30:20.348244",
+      "details": {}
+    }
+  ],
+  "environment": {
+    "sisense_url": "https://analytics.veriforceone.com",
+    "demo_mode": false,
+    "ssl_verify": true
+  }
+}

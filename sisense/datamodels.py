@@ -50,6 +50,25 @@ def list_models(model_type: Optional[str] = None) -> List[Dict[str, Any]]:
             }
         ]
     
+    # If specifically asking for live models, try datasources endpoint first
+    if model_type == 'live':
+        try:
+            headers = get_auth_headers()
+            http_client = get_http_client()
+            base_url = Config.get_sisense_base_url()
+            
+            logger.debug("Attempting datasources endpoint for live models")
+            response = http_client.get(f"{base_url}/api/datasources", headers=headers)
+            if response.status_code == 200:
+                datasources = response.json()
+                if isinstance(datasources, list):
+                    # Filter for live datasources only
+                    live_models = [ds for ds in datasources if ds.get('live', False)]
+                    logger.info(f"Retrieved {len(live_models)} live models using datasources API")
+                    return live_models
+        except Exception as e:
+            logger.debug(f"Datasources endpoint failed, falling back to regular endpoints: {e}")
+    
     headers = get_auth_headers()
     http_client = get_http_client()
     base_url = Config.get_sisense_base_url()
@@ -119,16 +138,59 @@ def get_model(model_oid: str) -> Dict[str, Any]:
             "title": f"Demo Model {model_oid}",
             "type": "demo",
             "description": "Demo data model for testing",
-            "tables": [],
+            "tables": [
+                {"name": "Sales", "columns": [{"name": "ProductID", "type": "integer"}, {"name": "Revenue", "type": "numeric"}]},
+                {"name": "Products", "columns": [{"name": "ProductID", "type": "integer"}, {"name": "ProductName", "type": "text"}]}
+            ],
             "created": "2024-01-01T00:00:00Z"
         }
     
-    logger.error(f"Cannot retrieve data model {model_oid}: Data models functionality not available")
-    logger.error("Endpoint /api/v2/datamodels/{model_oid} returns 404 in this Sisense environment")
+    headers = get_auth_headers()
+    http_client = get_http_client()
+    base_url = Config.get_sisense_base_url()
+    
+    # Try v2 first (Linux deployments)
+    try:
+        logger.debug(f"Attempting v2 datamodels endpoint for model: {model_oid}")
+        response = http_client.get(f"{base_url}/api/v2/datamodels/{model_oid}", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Retrieved model {model_oid} using v2 API")
+            return data
+    except Exception as e:
+        logger.debug(f"v2 datamodels endpoint failed for model {model_oid}: {e}")
+    
+    # Try v1 elasticubes endpoint
+    try:
+        logger.debug(f"Attempting v1 elasticubes endpoint for model: {model_oid}")
+        response = http_client.get(f"{base_url}/api/v1/elasticubes/{model_oid}", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Retrieved model {model_oid} using v1 API")
+            return data
+    except Exception as e:
+        logger.debug(f"v1 elasticubes endpoint failed for model {model_oid}: {e}")
+    
+    # Try alternative v1 endpoint
+    try:
+        logger.debug(f"Attempting v1 elasticubes/getElasticubes endpoint for model: {model_oid}")
+        response = http_client.get(f"{base_url}/api/v1/elasticubes/getElasticubes", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list):
+                # Find the specific model
+                for model in data:
+                    if model.get('oid') == model_oid or model.get('id') == model_oid:
+                        logger.info(f"Retrieved model {model_oid} from elasticubes list")
+                        return model
+    except Exception as e:
+        logger.debug(f"v1 elasticubes/getElasticubes endpoint failed for model {model_oid}: {e}")
+    
+    logger.error(f"Cannot retrieve data model {model_oid}: All endpoints failed")
     
     raise SisenseAPIError(
         f"Cannot retrieve data model {model_oid}. Data models functionality is not available "
-        "in this Sisense environment. The /api/v2/datamodels endpoint is not accessible."
+        "in this Sisense environment or the model ID is invalid."
     )
 
 

@@ -9,33 +9,49 @@
     <p>Welcome to Sisense Flask Integration v2.0. Monitor your data sources, execute queries, and manage connections through this modernized interface.</p>
     
     <div class="grid grid-3">
-        <div class="stat-card">
+        <div class="stat-card clickable" onclick="window.location.href='/dashboards'">
             <div class="stat-icon">
                 <i class="fas fa-chart-bar"></i>
             </div>
             <div class="stat-content">
-                <h3 id="dashboard-count" class="stat-number">0</h3>
+                <h3 id="dashboard-count" class="stat-number">--</h3>
                 <p class="stat-label">Dashboards</p>
             </div>
         </div>
         
-        <div class="stat-card">
+        <div class="stat-card clickable" onclick="window.location.href='/datamodels'">
             <div class="stat-icon">
                 <i class="fas fa-database"></i>
             </div>
             <div class="stat-content">
-                <h3 id="model-count" class="stat-number">0</h3>
+                <h3 id="model-count" class="stat-number">--</h3>
                 <p class="stat-label">Data Models</p>
             </div>
         </div>
         
-        <div class="stat-card">
+        <div class="stat-card clickable" onclick="window.location.href='/connections'">
             <div class="stat-icon">
                 <i class="fas fa-plug"></i>
             </div>
             <div class="stat-content">
-                <h3 id="connection-count" class="stat-number">0</h3>
+                <h3 id="connection-count" class="stat-number">--</h3>
                 <p class="stat-label">Connections</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity Section -->
+    <div class="mt-4">
+        <h3><i class="fas fa-clock"></i> Recent Activity</h3>
+        <div id="recent-activity" class="activity-feed">
+            <div class="activity-item">
+                <div class="activity-icon">
+                    <i class="fas fa-play"></i>
+                </div>
+                <div class="activity-content">
+                    <span class="activity-text">Application started</span>
+                    <span class="activity-time" id="app-start-time">Just now</span>
+                </div>
             </div>
         </div>
     </div>

@@ -88,7 +88,7 @@ class SmartSisenseClient:
         List data models using detected data model pattern.
         
         Args:
-            model_type: Optional filter for model type
+            model_type: Optional filter for model type ('live', 'extract', etc.)
             
         Returns:
             List of data models
@@ -97,6 +97,21 @@ class SmartSisenseClient:
             SisenseAPIError: If data models cannot be retrieved
         """
         self._ensure_capabilities()
+        
+        # If specifically asking for live models, use datasources endpoint
+        if model_type == 'live':
+            try:
+                response = self._call_api('GET', '/api/datasources')
+                if response.status_code == 200:
+                    datasources = response.json()
+                    # Filter for live datasources only
+                    live_models = [ds for ds in datasources if ds.get('live', False)]
+                    return live_models
+            except Exception as e:
+                # Fall through to regular pattern detection
+                pass
+        
+        # Regular pattern detection for ElastiCubes
         pattern = self.capabilities.get('data_model_pattern')
         
         if pattern == 'v2_datamodels':

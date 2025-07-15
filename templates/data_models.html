@@ -91,16 +91,17 @@ function displayModelsList(models, container) {
     html += '</tr></thead><tbody>';
 
     models.forEach(model => {
+        const modelId = model.oid || model.id || 'unknown';
         html += `<tr>
             <td><strong>${escapeHtml(model.title)}</strong></td>
             <td><span class="badge badge-info">${model.type || 'Unknown'}</span></td>
             <td>${escapeHtml(model.description || 'No description')}</td>
             <td>${formatDateTime(model.lastModified)}</td>
             <td>
-                <button class="btn btn-primary btn-sm" onclick="viewModelDetails('${model.oid}')">
+                <button class="btn btn-primary btn-sm" onclick="viewModelDetails('${modelId}')" ${modelId === 'unknown' ? 'disabled' : ''}>
                     View Details
                 </button>
-                <button class="btn btn-secondary btn-sm" onclick="viewModelTables('${model.oid}')">
+                <button class="btn btn-secondary btn-sm" onclick="viewModelTables('${modelId}')" ${modelId === 'unknown' ? 'disabled' : ''}>
                     Tables
                 </button>
             </td>
@@ -174,16 +175,33 @@ async function viewModelDetails(modelId) {
 }
 
 async function viewModelTables(modelId) {
+    if (!modelId || modelId === 'unknown') {
+        alert('Invalid model ID. Cannot load tables.');
+        return;
+    }
+    
     try {
+        console.log('Loading tables for model:', modelId);
+        
+        const modal = document.getElementById('model-modal');
+        const title = document.getElementById('modal-model-title');
+        const content = document.getElementById('model-details');
+        
+        // Show loading state
+        title.textContent = 'Loading Tables...';
+        content.innerHTML = '<div class="spinner"></div>';
+        modal.style.display = 'block';
+        
         const response = await fetch(`/api/datamodels/${modelId}/tables`);
         const data = await response.json();
         
         if (response.ok) {
-            const modal = document.getElementById('model-modal');
-            const title = document.getElementById('modal-model-title');
-            const content = document.getElementById('model-details');
-            
             title.textContent = 'Model Tables';
+            
+            if (!data.data || data.data.length === 0) {
+                content.innerHTML = '<div class="alert alert-info">No tables found for this model.</div>';
+                return;
+            }
             
             let html = '<div class="table-container"><table class="table"><thead><tr>';
             html += '<th>Table Name</th><th>Columns</th><th>Actions</th></tr></thead><tbody>';
@@ -202,12 +220,17 @@ async function viewModelTables(modelId) {
             
             html += '</tbody></table></div>';
             content.innerHTML = html;
-            modal.style.display = 'block';
         } else {
-            window.sisenseUI.showAlert(`Failed to load tables: ${data.message}`, 'danger');
+            content.innerHTML = `<div class="alert alert-danger">Failed to load tables: ${data.message}</div>`;
+            if (window.sisenseUI) {
+                window.sisenseUI.showAlert(`Failed to load tables: ${data.message}`, 'danger');
+            }
         }
     } catch (error) {
-        window.sisenseUI.showAlert(`Error loading tables: ${error.message}`, 'danger');
+        content.innerHTML = `<div class="alert alert-danger">Error loading tables: ${error.message}</div>`;
+        if (window.sisenseUI) {
+            window.sisenseUI.showAlert(`Error loading tables: ${error.message}`, 'danger');
+        }
     }
 }
 
