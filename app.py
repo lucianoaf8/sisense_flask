@@ -500,6 +500,27 @@ def create_app():
             app_logger.error(f"Failed to get widget summary {widget_id}: {e}")
             raise
     
+    # Export endpoints (missing in original implementation)
+    @app.route('/api/dashboards/<dashboard_id>/export/<export_type>', methods=['GET'])
+    def export_dashboard(dashboard_id, export_type):
+        """Get dashboard export URL."""
+        try:
+            export_url = dashboards.get_dashboard_export_url(dashboard_id, export_type)
+            return jsonify({'export_url': export_url, 'dashboard_id': dashboard_id, 'export_type': export_type})
+        except Exception as e:
+            app_logger.error(f"Failed to get dashboard export URL {dashboard_id}: {e}")
+            raise
+    
+    @app.route('/api/widgets/<widget_id>/export/<export_type>', methods=['GET'])
+    def export_widget(widget_id, export_type):
+        """Get widget export URL."""
+        try:
+            export_url = widgets.get_widget_export_url(widget_id, export_type)
+            return jsonify({'export_url': export_url, 'widget_id': widget_id, 'export_type': export_type})
+        except Exception as e:
+            app_logger.error(f"Failed to get widget export URL {widget_id}: {e}")
+            raise
+    
     # SQL endpoints
     @app.route('/api/datasources/<datasource>/sql', methods=['GET'])
     def execute_sql_query(datasource):
